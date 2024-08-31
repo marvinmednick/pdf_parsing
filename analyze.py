@@ -10,13 +10,10 @@ count = 0
 
 def rect_to_dict(rect):
     global count
-    print(rect)
 
     if isinstance(rect, tuple) and len(rect) == 4:
-        print("is tuple")
         return {"x0": rect[0], "top": rect[1], "x1": rect[2], "bottom": rect[3]}
     elif hasattr(rect, 'x0'):
-        print("has x0 attribute")
         return {"x0": rect.x0, "top": rect.y0, "x1": rect.x1, "bottom": rect.y1}
     else:
         raise ValueError("Unexpected rect format")
@@ -32,6 +29,7 @@ def extract_images_and_tables(pdf_path, output_dir):
     doc_table_index = 0
 
     for page_num, page in enumerate(doc):
+        print(f"Identifying Images and Tables ...  Page {page_num}", end="\r")
         # Extract images
         page_locations = {"images": [], "tables": []}
         locations_by_page.append(page_locations)
@@ -46,7 +44,7 @@ def extract_images_and_tables(pdf_path, output_dir):
             with open(image_path, "wb") as image_file:
                 image_file.write(image_bytes)
             images.append(image_path)
-            print("Image bbox:", page.get_image_bbox(img))
+            # print("Image bbox:", page.get_image_bbox(img))
             doc_image_index += 1
             location_record = {
                 "page": page_num,
@@ -55,7 +53,7 @@ def extract_images_and_tables(pdf_path, output_dir):
                 "bbox": rect_to_dict(page.get_image_bbox(img)),
                 "file": image_filename
             }
-            print("Location Record:", location_record)
+            # print("Location Record:", location_record)
             locations["images"].append(location_record)
             page_locations["images"].append(location_record)
 
@@ -84,6 +82,7 @@ def extract_images_and_tables(pdf_path, output_dir):
             'locations_by_page': locations_by_page,
         }
 
+    print(f"Identifying Images and Tables Complete{' '*40}")
     return images, tables, location_info
 
 
@@ -93,6 +92,7 @@ def analyze_pdf(pdf_path, header_size, footer_size):
         all_words_output = []
 
         for page_number, page in enumerate(pdf.pages):
+            print(f"Analyzing document ...  Page {page_number}", end="\r")
             page_height = page.height
             page_width = page.width
 
@@ -133,7 +133,7 @@ def analyze_pdf(pdf_path, header_size, footer_size):
                             break
 
                     if not bbox_details:
-                        print(f"Line not found on page {page_number + 1}: '{line}'")
+                        # print(f"Line not found on page {page_number + 1}: '{line}'")
                         
                         # Attempt to use the bottom of the previous line and the top of the next line
                         if i == 0:
@@ -253,7 +253,9 @@ def analyze_pdf(pdf_path, header_size, footer_size):
             }
             all_words_output.append(words_output)
 
+        print(f"Analyzing document complete{' '*60}")
         return pages_output, all_words_output
+
 
 def filter_text(pages_output, location_info):
     filtered_pages_output = []
@@ -261,7 +263,7 @@ def filter_text(pages_output, location_info):
 
     for page_data in pages_output:
         page_number = page_data['page_number']
-        print(f"Page {page_number}")
+        print(f"Filtering ouput ... Page {page_number}", end="\r")
         filtered_lines = []
         used_references = set()
         locations = location_info['locations_by_page'][page_number-1]
@@ -272,13 +274,13 @@ def filter_text(pages_output, location_info):
             # Check if the line overlaps with any image or table
             removed_line = False
 
-            print(f"{' '*5}Line {line_num} {line['bbox']}")
+            # print(f"{' '*5}Line {line_num} {line['bbox']}")
             for idx, image in enumerate(locations['images']):
-                print(f"{' '*10}Checking image {idx} {image['bbox']}")
+                # print(f"{' '*10}Checking image {idx} {image['bbox']}")
                 reference = f"[Image {image['doc_index']}: {image['file']}]"
                 if image['page'] == page_number - 1 and bboxes_overlap(line['bbox'], image['bbox']):
-                    print(f"{' '*15}Found location for Image {reference}")
-                    print(f"{' '*15}Text: {line['text']}")
+                    # print(f"{' '*15}Found location for Image {reference}")
+                    # print(f"{' '*15}Text: {line['text']}")
                     removed_line = {
                         'line': line,
                         'line_number': line_num,
@@ -302,14 +304,14 @@ def filter_text(pages_output, location_info):
                         'bbox': image['bbox'],
                     }
                     filtered_lines.append(reference_rec)
-                    print(f"Added Reference {reference_rec}")
+                    # print(f"Added Reference {reference_rec}")
 
             for idx, table in enumerate(locations['tables']):
-                print(f"{' '*10}Checking table {idx} {table['bbox']}")
+                # print(f"{' '*10}Checking table {idx} {table['bbox']}")
                 reference = f"[Table {table['doc_index']}: {table['file']}]"
                 if table['page'] == page_number - 1 and bboxes_overlap(line['bbox'], table['bbox']):
-                    print(f"{' '*10}Found overlap with for table {reference}")
-                    print(f"{' '*15}Text: {line['text']}")
+                    # print(f"{' '*10}Found overlap with for table {reference}")
+                    # print(f"{' '*15}Text: {line['text']}")
                     removed_line = {
                         'line': line,
                         'line_number': line_num,
@@ -332,7 +334,7 @@ def filter_text(pages_output, location_info):
                         'bbox': table['bbox'],
                     }
                     filtered_lines.append(reference_rec)
-                    print(f"Added Reference {reference_rec}")
+                    # print(f"Added Reference {reference_rec}")
 
             if not removed_line:
                 filtered_lines.append(line)
@@ -346,6 +348,7 @@ def filter_text(pages_output, location_info):
         }
         filtered_pages_output.append(filtered_page_output)
 
+    print(f"Filtering complete.{' '*40}")
     return filtered_pages_output
 
 
