@@ -3,9 +3,14 @@ import pdfplumber
 import json
 import argparse
 import os
+import sys
 from reportlab.pdfgen import canvas
 
 count = 0
+
+
+def format_bbox(rect):
+    return f"{{ x0: {rect['x0']:.4}, top: {rect['top']:.4}, x1: {rect['x1']:.4}, bottom: {rect['bottom']:.4} }}"
 
 
 def rect_to_dict(rect):
@@ -69,7 +74,7 @@ def extract_images_and_tables(pdf_path, output_dir):
             doc_table_index += 1
             location_record = {
                 "page": page_num,
-                "page_index": img_index+1,
+                "page_index": table_index+1,
                 "doc_index": doc_table_index,
                 "bbox": rect_to_dict(table.bbox),
                 "file": table_filename
@@ -86,7 +91,7 @@ def extract_images_and_tables(pdf_path, output_dir):
     return images, tables, location_info
 
 
-def analyze_pdf(pdf_path, header_size, footer_size):
+def analyze_pdf(pdf_path, header_size, footer_size, debug_match=False):
     with pdfplumber.open(pdf_path) as pdf:
         pages_output = []
         all_words_output = []
@@ -113,42 +118,57 @@ def analyze_pdf(pdf_path, header_size, footer_size):
             # Extract lines
             lines = []
             matched_areas = []
-            extracted_text = page.extract_text(layout=False)
+            extracted_text = page.extract_text()
+            # split the text into lines
             line_texts = extracted_text.split('\n') if extracted_text else []
-            for i, line in enumerate(line_texts):
+
+            for line_num, line in enumerate(line_texts):
                 if line.strip():
-                    search_results = page.search(line, regex=False)
+                    if debug_match:
+                        print(f"Line {line_num} -  {line}")
+                    search_results = page.search(line, regex=False, y_tolerance=4)
                     bbox_details = None
                     for result in search_results:
-                        # Check if the result overlaps with any matched area
+                        # Check if the result overlaps with any previously matched areas
                         overlap = False
-                        for area in matched_areas:
+                        for index, area in enumerate(matched_areas):
                             if (result['x0'] < area['x1'] and result['x1'] > area['x0'] and
                                     result['top'] < area['bottom'] and result['bottom'] > area['top']):
                                 overlap = True
+                                if debug_match:
+                                    print(f"    Overlaps with area {index}:")
+                                    print(f"    Area  : {format_bbox(area)}!")
+                                    print(f"    Result: {format_bbox(result)}!")
                                 break
                         if not overlap:
                             bbox_details = result
                             matched_areas.append(bbox_details)
+                            if debug_match:
+                                print(f"    Added bbox to matched areas: x0: {format_bbox(result)} -- {len(matched_areas)-1}")
                             break
 
                     if not bbox_details:
-                        # print(f"Line not found on page {page_number + 1}: '{line}'")
-                        
+                        if debug_match:
+                            print(f"Line not found on page {page_number + 1}: '{line}'")
+
                         # Attempt to use the bottom of the previous line and the top of the next line
-                        if i == 0:
+                        if line_num == 0:
                             prev_bottom = 0
                         else:
-                            prev_bottom = lines[i - 1]['bbox_details']['bottom']
+                            prev_bottom = lines[line_num - 1]['bbox_details']['bottom']
 
-                        if i + 1 < len(line_texts) and line_texts[i + 1].strip():
-                            next_search_results = page.search(line_texts[i + 1], regex=False)
+                        if line_num + 1 < len(line_texts) and line_texts[line_num + 1].strip():
+                            next_search_results = page.search(line_texts[line_num + 1], regex=False)
                             if next_search_results:
                                 next_top = next_search_results[0]['top']
                             else:
-                                raise ValueError(f"Following line also not found for line on page {page_number + 1}: '{line}'")
+                                print(f"ERROR: Search Match not found for line on page {page_number + 1}: '{line}'", file=sys.stderr)
+                                print("Skipping")
+                                continue
                         else:
-                            raise ValueError(f"Next line not found for line on page {page_number + 1}: '{line}'")
+                            print(f"ERROR: Search Match not found for line on page {page_number + 1} line {line_num}: '{line}'", file=sys.stderr)
+                            print("Skipping")
+                            continue
 
                         bbox_details = {
                             'x0': 0,
@@ -165,7 +185,7 @@ def analyze_pdf(pdf_path, header_size, footer_size):
                     }
                     
                     lines.append({
-                        'id': f'line_{i}',
+                        'id': f'line_{line_num}',
                         'text': line,
                         'bbox_details': bbox_details,
                         'bbox': bbox
@@ -260,6 +280,7 @@ def analyze_pdf(pdf_path, header_size, footer_size):
 def filter_text(pages_output, location_info):
     filtered_pages_output = []
     removed_lines_by_page = []
+    headers_and_footers_by_page = []
 
     for page_data in pages_output:
         page_number = page_data['page_number']
@@ -269,6 +290,14 @@ def filter_text(pages_output, location_info):
         locations = location_info['locations_by_page'][page_number-1]
         removed_lines = []
         removed_lines_by_page.append(removed_lines)
+        header_boundry = page_data['header']['bottom']
+        footer_boundry = page_data['footer']['top']
+        headers_and_footers = []
+        headers_and_footers_by_page.append(headers_and_footers)
+        # tolerance is set -- positive indicates that text line
+        # can go over the boundry by 'tolerance' and still be 
+        # considered within the boundry
+        tolerance = 2
 
         for line_num, line in enumerate(page_data['lines']['lines']):
             # Check if the line overlaps with any image or table
@@ -278,11 +307,10 @@ def filter_text(pages_output, location_info):
             for idx, image in enumerate(locations['images']):
                 # print(f"{' '*10}Checking image {idx} {image['bbox']}")
                 reference = f"[Image {image['doc_index']}: {image['file']}]"
-                if image['page'] == page_number - 1 and bboxes_overlap(line['bbox'], image['bbox']):
+                if not removed_line and image['page'] == page_number - 1 and bboxes_overlap(line['bbox'], image['bbox'], tolerance):
                     # print(f"{' '*15}Found location for Image {reference}")
                     # print(f"{' '*15}Text: {line['text']}")
                     removed_line = {
-                        'line': line,
                         'line_number': line_num,
                         'ref_type': 'image',
                         'reference': reference,
@@ -294,7 +322,7 @@ def filter_text(pages_output, location_info):
                 # if the top of current line is below the bottom of image
                 # we've found next line after the table, and need to insert the reference 
                 # before it.
-                if reference not in used_references and line_is_below_image(image, line):
+                if reference not in used_references and line_is_below_image(image, line, tolerance):
                     # print(f"Found location for Image {reference}")
                     used_references.add(reference)
                     # Insert reference
@@ -309,11 +337,10 @@ def filter_text(pages_output, location_info):
             for idx, table in enumerate(locations['tables']):
                 # print(f"{' '*10}Checking table {idx} {table['bbox']}")
                 reference = f"[Table {table['doc_index']}: {table['file']}]"
-                if table['page'] == page_number - 1 and bboxes_overlap(line['bbox'], table['bbox']):
+                if not removed_line and table['page'] == page_number - 1 and bboxes_overlap(line['bbox'], table['bbox'], tolerance):
                     # print(f"{' '*10}Found overlap with for table {reference}")
                     # print(f"{' '*15}Text: {line['text']}")
                     removed_line = {
-                        'line': line,
                         'line_number': line_num,
                         'ref_type': 'table',
                         'reference': reference,
@@ -325,7 +352,7 @@ def filter_text(pages_output, location_info):
                 # if the top of current line is below the bottom of table
                 # we've found next line after the table, and need to insert the reference 
                 # before it.
-                if reference not in used_references and line_is_below_table(table, line):
+                if reference not in used_references and line_is_below_table(table, line, tolerance):
                     used_references.add(reference)
                     # Insert reference 
                     reference_rec = {
@@ -336,14 +363,43 @@ def filter_text(pages_output, location_info):
                     filtered_lines.append(reference_rec)
                     # print(f"Added Reference {reference_rec}")
 
+            # check for line being above the header boundry, if
+            # so move it to the header and footer list
+            if not removed_line and line['bbox']['bottom'] - tolerance < header_boundry:
+                header_rec = {
+                    'page': page_number,
+                    'type': 'header',
+                    'text': line['text'],
+                    'bbox': line['bbox'],
+                }
+                headers_and_footers.append(header_rec)
+                removed_line = True
+
+            # check for line being below the footer boundry, if
+            # so move it to the header and footer list
+            if not removed_line and line['bbox']['top'] + tolerance > footer_boundry:
+                header_rec = {
+                    'page': page_number,
+                    'type': 'footer',
+                    'text': line['text'],
+                    'bbox': line['bbox'],
+                }
+                headers_and_footers.append(header_rec)
+                removed_line = True
+
             if not removed_line:
-                filtered_lines.append(line)
+                line_rec = {
+                    'text': line['text'],
+                    'bbox': line['bbox']
+                }
+                filtered_lines.append(line_rec)
 
         filtered_page_output = {
             'page_number': page_number,
+            'headers_and_footers': headers_and_footers,
             'lines': {
                 'number_of_lines': len(filtered_lines),
-                'lines': filtered_lines
+                'lines': filtered_lines,
             }
         }
         filtered_pages_output.append(filtered_page_output)
@@ -416,9 +472,10 @@ def main():
     parser.add_argument('-d', '--dir', default='analyze_pdf_output', help='Application output directory')
     parser.add_argument('-o', '--output', help='Base name for output directory (default: input file base name)')
     parser.add_argument('--extract_file', default='extracted_text.json', help='Name of the extracted text JSON file')
-    parser.add_argument('--header_size', type=float, default=0.1, help='Header size as a percentage of the page height (e.g., 0.1 for 10%%)')
-    parser.add_argument('--footer_size', type=float, default=0.1, help='Footer size as a percentage of the page height (e.g., 0.1 for 10%%)')
+    parser.add_argument('--header_size', type=float, default=0.07, help='Header size as a percentage of the page height (e.g., 0.1 for 10%%)')
+    parser.add_argument('--footer_size', type=float, default=0.07, help='Footer size as a percentage of the page height (e.g., 0.1 for 10%%)')
     parser.add_argument('--savewords', action='store_true', help='Save all words with bounding boxes to a separate JSON file')
+    parser.add_argument('--debug_match', '-dbm', action='store_true', default=False, help='Debug the search to match lines in text to create bbox for line')
     parser.add_argument('--show_missing', action='store_true', help='Generate a PDF showing unassociated words with bounding boxes')
     
     args = parser.parse_args()
@@ -433,7 +490,7 @@ def main():
     images, tables, location_info = extract_images_and_tables(args.pdf_path, output_dir)
 
     # Analyze PDF for text
-    pages_output, all_words_output = analyze_pdf(args.pdf_path, args.header_size, args.footer_size)
+    pages_output, all_words_output = analyze_pdf(args.pdf_path, args.header_size, args.footer_size,args.debug_match)
 
     # Save extracted text
     extract_path = os.path.join(output_dir, args.extract_file)
@@ -467,6 +524,13 @@ def main():
     with open(filtered_text_path, 'w') as f:
         json.dump(filtered_pages_output, f, indent=2)
     print(f"Filtered text saved to {filtered_text_path}")
+
+    # Save headers and footers to JSON file
+#    headers_footers_path = os.path.join(output_dir, "headers_and_footers.json")
+#    with open(headers_footers_path, 'w', encoding='utf-8') as f:
+#        json.dump(headers_and_footers, f, ensure_ascii=False, indent=2)
+#
+#    print(f"Headers and footers saved to {headers_footers_path}")
 
     # Save filtered text lines to a text file
     filtered_text_txt_path = os.path.join(output_dir, 'filtered_text.txt')

@@ -11,12 +11,12 @@ def extract_toc(text):
     print("TOC Searching")
     toc_start_list = re.finditer(r'\b(?:Table\s+of\s+Contents|Contents|TOC)\b', text, re.IGNORECASE)
     for i, toc_start in enumerate(toc_start_list):
-        print(f"{i} Found TOC Start at {toc_start.start()}")
+        print(f"{i} Found TOC Start at {toc_start.start()} {text[toc_start.start():toc_start.start()+80]}")
 
         print()
     # More flexible TOC detection
-    #toc_start = re.search(r'\b(?:Table\s+of\s+Contents|Contents|TOC)\b', text, re.IGNORECASE)
-    #if not toc_start:
+    # toc_start = re.search(r'\b(?:Table\s+of\s+Contents|Contents|TOC)\b', text, re.IGNORECASE)
+    # if not toc_start:
     #    return None
     
         print(f"TOC found at position: {toc_start.start()}")
@@ -39,11 +39,11 @@ def extract_toc(text):
         toc_lines = toc_text.split('\n')
         toc_list = []
         for line in toc_lines:
-            print(line)
-            if match := re.search(toc_pattern1,line):
+            #            print(line)
+            if match := re.search(toc_pattern1, line):
                 # Print out each named group result
-                for name, value in match.groupdict().items():
-                    print(f"{name}: {value}")
+                # for name, value in match.groupdict().items():
+                #     print(f"{name}: {value}")
                 original_dict = match.groupdict()
                 key_mapping = {
                     'type': 'section_type',
@@ -55,8 +55,8 @@ def extract_toc(text):
                 result_dict = {new_key: (original_dict[old_key] if original_dict[old_key] is not None else 'NA')
                    for old_key, new_key in key_mapping.items()}
                 toc_list.append(result_dict)
-            else:
-                print("No match found.")
+            # else:
+            #    print("No match found.")
 
     
 #         # Find all TOC entries

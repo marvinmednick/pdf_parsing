@@ -27,6 +27,7 @@ share/python-wheels/
 MANIFEST
 *_venv/
 analyze_pdf_output/
+old/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
