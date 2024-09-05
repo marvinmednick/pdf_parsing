@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Process PDF to outline blocks and extract text details
+Process PDF to outline blocks, extract text details, and identify images and tables
 """
 
 import argparse
@@ -20,14 +20,141 @@ def parse_arguments():
     parser.add_argument('--outline_blocks', action='store_true', help='Outline blocks in the PDF')
     parser.add_argument('-ad', '--appdir', help='Application directory', default='block_extract')
     parser.add_argument('-od', '--output_dir', help='Output directory')
+    parser.add_argument('--header_size', type=float, default=0.07, help='Header size as a percentage of the page height (e.g., 0.1 for 10%%)')
+    parser.add_argument('--footer_size', type=float, default=0.07, help='Footer size as a percentage of the page height (e.g., 0.1 for 10%%)')
     return parser.parse_args()
 
 
-def process_pdf(input_file, output_file, outline_blocks, app_dir, output_dir):
+def format_bbox(rect):
+    return f"{{ x0: {rect['x0']:.4}, top: {rect['top']:.4}, x1: {rect['x1']:.4}, bottom: {rect['bottom']:.4} }}"
+
+
+def rect_to_dict(rect):
+    if isinstance(rect, tuple) and len(rect) == 4:
+        return {"x0": rect[0], "top": rect[1], "x1": rect[2], "bottom": rect[3]}
+    elif hasattr(rect, 'x0'):
+        return {"x0": rect.x0, "top": rect.y0, "x1": rect.x1, "bottom": rect.y1}
+    else:
+        raise ValueError("Unexpected rect format")
+
+
+def extract_images_and_tables(doc, output_dir):
+    images = []
+    tables = []
+    locations = {"images": [], "tables": []}
+    locations_by_page = []
+    doc_image_index = 0
+    doc_table_index = 0
+
+    for page_num, page in enumerate(doc):
+        print(f"Identifying Images and Tables ...  Page {page_num}", end="\r")
+        # Extract images
+        page_locations = {"images": [], "tables": []}
+        locations_by_page.append(page_locations)
+
+        image_list = page.get_images(full=True)
+        for img_index, img in enumerate(image_list):
+            xref = img[0]
+            base_image = doc.extract_image(xref)
+            image_bytes = base_image["image"]
+            image_filename = f"image_p{page_num+1}_{img_index+1}.png"
+            image_path = os.path.join(output_dir, image_filename)
+            with open(image_path, "wb") as image_file:
+                image_file.write(image_bytes)
+            images.append(image_path)
+            doc_image_index += 1
+            location_record = {
+                "page": page_num,
+                "page_index": img_index+1,
+                "doc_index": doc_image_index,
+                "bbox": rect_to_dict(page.get_image_bbox(img)),
+                "file": image_filename
+            }
+            locations["images"].append(location_record)
+            page_locations["images"].append(location_record)
+
+        # Extract tables
+        tables_on_page = page.find_tables()
+        for table_index, table in enumerate(tables_on_page):
+            table_text = table.extract()
+            table_filename = f"table_p{page_num+1}_{table_index+1}.txt"
+            table_path = os.path.join(output_dir, table_filename)
+            with open(table_path, "w", encoding="utf-8") as table_file:
+                table_file.write(str(table_text))
+            tables.append(table_path)
+            doc_table_index += 1
+            location_record = {
+                "page": page_num,
+                "page_index": table_index+1,
+                "doc_index": doc_table_index,
+                "bbox": rect_to_dict(table.bbox),
+                "file": table_filename
+            }
+            locations["tables"].append(location_record)
+            page_locations["tables"].append(location_record)
+
+    print(f"Identifying Images and Tables Complete{' '*40}")
+    location_info = {
+        'locations': locations,
+        'locations_by_page': locations_by_page,
+    }
+
+    return images, tables, location_info
+
+
+
+def identify_header_footer_blocks(pages_data, header_size, footer_size):
+    header_footer_data = {}
+
+    for page in pages_data:
+        page_number = page['page_number']
+        header_footer_data[page_number] = {
+            'headers': [],
+            'footers': []
+        }
+
+        page_height = page['height']
+        header_limit = header_size * page_height
+        footer_limit = (1 - footer_size) * page_height
+
+        for index, block in enumerate(page['blocks']):
+            if 'bbox' in block:
+                bbox = block['bbox']
+                block_top = bbox[1]
+                block_bottom = bbox[3]
+
+                # Check if the block is within the header area
+                if block_top < header_limit:
+                    header_footer_data[page_number]['headers'].append(block)
+
+                # Check if the block is within the footer area
+                if block_bottom > footer_limit:
+                    header_footer_data[page_number]['footers'].append(block)
+
+    return header_footer_data
+
+
+def save_header_footer_blocks(header_footer_data, output_dir):
+    header_footer_json_file = os.path.join(output_dir, 'header_and_footers.json')
+    with open(header_footer_json_file, 'w', encoding='utf-8') as f:
+        json.dump(header_footer_data, f, ensure_ascii=False, indent=4)
+
+
+def process_pdf(doc, input_file, output_file, outline_blocks, app_dir, output_dir, header_size, footer_size):
     """
     Process PDF to outline blocks and extract text details
     """
-    doc = pymupdf.open(input_file)
+    images, tables, location_info = extract_images_and_tables(doc, output_dir)
+
+    with open(os.path.join(output_dir, "images.json"), "w", encoding="utf-8") as f:
+        json.dump(images, f, ensure_ascii=False, indent=4)
+
+    with open(os.path.join(output_dir, "tables.json"), "w", encoding="utf-8") as f:
+        json.dump(tables, f, ensure_ascii=False, indent=4)
+
+    with open(os.path.join(output_dir, "locations.json"), "w", encoding="utf-8") as f:
+        json.dump(location_info, f, ensure_ascii=False, indent=4)
+
     pages_data = []
 
     for page in doc:
@@ -36,7 +163,11 @@ def process_pdf(input_file, output_file, outline_blocks, app_dir, output_dir):
             "blocks": []
         }
 
-        blocks = page.get_text("dict", sort=True)["blocks"]
+    
+        page_info = page.get_text("dict")
+        blocks = page_info["blocks"]
+        page_data['height'] = page_info['height']
+        page_data['width'] = page_info['width']
         for block in blocks:
             block_data = {
                 "block_number": block["number"],
@@ -101,12 +232,12 @@ def process_pdf(input_file, output_file, outline_blocks, app_dir, output_dir):
     if outline_blocks:
         doc.save(output_file)
 
-    output_dir_path = os.path.join(app_dir, output_dir)
-    os.makedirs(output_dir_path, exist_ok=True)
-
-    json_output_file = os.path.join(output_dir_path, f"{os.path.basename(input_file)[:-4]}_blocks.json")
+    json_output_file = os.path.join(output_dir, f"{os.path.basename(input_file)[:-4]}_blocks.json")
     with open(json_output_file, 'w', encoding='utf-8') as f:
         json.dump(pages_data, f, ensure_ascii=False, indent=4)
+
+    header_footer_data = identify_header_footer_blocks(pages_data, header_size, footer_size)
+    save_header_footer_blocks(header_footer_data, output_dir)
 
 
 def main():
@@ -115,8 +246,14 @@ def main():
     """
     args = parse_arguments()
     output_dir = args.output_dir if args.output_dir else os.path.basename(args.input_file)[:-4]
-    output_file = args.output_file if args.output_file else f"{args.input_file[:-4]}_blocks.pdf"
-    process_pdf(args.input_file, output_file, args.outline_blocks, args.appdir, output_dir)
+    app_dir = args.appdir
+    output_dir_path = os.path.join(app_dir, output_dir)
+    os.makedirs(output_dir_path, exist_ok=True)
+
+    output_file = args.output_file if args.output_file else os.path.join(output_dir_path, f"{os.path.basename(args.input_file)[:-4]}_blocks.pdf")
+
+    doc = pymupdf.open(args.input_file)
+    process_pdf(doc, args.input_file, output_file, args.outline_blocks, app_dir, output_dir_path, args.header_size, args.footer_size)
 
 
 if __name__ == "__main__":
