@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python4
 
 """
 Process PDF to outline blocks, extract text details, and identify images and tables
@@ -131,7 +131,7 @@ def identify_header_footer_blocks(pages_data, header_size, footer_size):
                 if block_bottom > footer_limit:
                     header_footer_data[page_number]['footers'].append(block)
 
-    return header_footer_data
+    return header_footer_data, header_limit, footer_limit
 
 
 def save_header_footer_blocks(header_footer_data, output_dir):
@@ -158,16 +158,17 @@ def process_pdf(doc, input_file, output_file, outline_blocks, app_dir, output_di
     pages_data = []
 
     for page in doc:
-        page_data = {
-            "page_number": page.number,
-            "blocks": []
-        }
-
-    
         page_info = page.get_text("dict")
         blocks = page_info["blocks"]
-        page_data['height'] = page_info['height']
-        page_data['width'] = page_info['width']
+
+        page_data = {
+            "page_number": page.number,
+            "blocks": [],
+            'filtered_blocks': [],
+            'height':  page_info['height'],
+            'width': page_info['width'],
+        }
+    
         for block in blocks:
             block_data = {
                 "block_number": block["number"],
@@ -236,7 +237,7 @@ def process_pdf(doc, input_file, output_file, outline_blocks, app_dir, output_di
     with open(json_output_file, 'w', encoding='utf-8') as f:
         json.dump(pages_data, f, ensure_ascii=False, indent=4)
 
-    header_footer_data = identify_header_footer_blocks(pages_data, header_size, footer_size)
+    header_footer_data, header_limit, footer_limit = identify_header_footer_blocks(pages_data, header_size, footer_size)
     save_header_footer_blocks(header_footer_data, output_dir)
 
 
