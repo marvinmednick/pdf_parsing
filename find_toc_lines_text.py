@@ -2,11 +2,9 @@ import json
 import re
 import argparse
 
-
 def load_config(config_file):
     with open(config_file, 'r') as file:
         return json.load(file)
-
 
 def build_regex(config_section):
     # Extract configuration settings
@@ -23,29 +21,20 @@ def build_regex(config_section):
         rf'(?:\.{{2,}}|…|\s{{2,}})\s*'
         rf'(?P<page>{page_number_pattern})'
     )
-
+    
     return toc_pattern
-
 
 def process_file(file_name, regex_pattern):
     with open(file_name, 'r') as file:
-        page_info_list = json.load(file)
-
-    print(f"{'Type':<10} {'Num':<10} {'Page':<5} {'Page fnd':<10} {'Title'}")
-    for page in page_info_list:
-        for block in page['blocks']:
-            for seg in block['text_segments']:
-                line = seg['text'].strip()
-                match = regex_pattern.match(line)
-                if match:
-                    type_str = match.group("type") or ""
-                    # print(f"Type str: {type_str}")
-                    number_str = match.group("number") or ""
-                    # print(f"Number: {number_str}")
-                    title_str = match.group("title")
-                    page_str = match.group("page")
-                    print(f"{type_str:<10} {number_str:<10} {page_str:<5} {page['page_number']:<10} {title_str}")
-
+        for line in file:
+            line = line.strip()
+            match = regex_pattern.match(line)
+            if match:
+                type_str = match.group("type") or ""
+                number_str = match.group("number") or ""
+                title_str = match.group("title")
+                page_str = match.group("page")
+                print(f"{type_str:<10} {number_str:<10} {page_str:<5} {title_str}")
 
 def main():
     parser = argparse.ArgumentParser(description='Process a file using a configurable regex pattern.')

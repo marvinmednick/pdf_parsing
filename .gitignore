@@ -28,6 +28,8 @@ MANIFEST
 *_venv/
 analyze_pdf_output/
 old/
+pdf_extract/
+data/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
