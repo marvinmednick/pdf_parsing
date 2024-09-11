@@ -1,0 +1,31 @@
+common_regex:
+  opt_ws: "\s*"
+  rqd_ws: "\s+"
+
+toc_parsing_configurations:
+  standard:
+    regex_groups: ['type', 'number', 'rqd_ws', 'title', 'spacing', 'page']
+    type: "(?P<type>Chapter|Section|Part|Annex|Appendix|Figure|Table)"
+    number: "(?P<number>[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)"
+    title: "(?P<title>.*?)"
+    spacing: "{common_regex.rqd_ws}"
+    page: "(?P<page>\\d+)"
+  custom:
+    regex_groups: ['type', 'number','rqd_ws',  'title', 'spacing', 'page']
+    type: "(?P<type>Chapter|Section|Part|Annex|Appendix)"
+    number: "(?P<number>[A-Za-z0-9]+(?:\\.[A-Za-z0-9]+)*)"
+    title: "(?P<title>.*?)"
+    spacing: "{common_regex.rqd_ws}"
+    page: "(?P<page>[ivxlcdm]+|\\d+)"
+
+section_parsing_configurations:
+  standard:
+    regex_groups: ['type', 'number','rqd_ws',  'title']
+    type: "(?P<type>Chapter|Section|Part|Annex|Appendix|Figure|Table)"
+    number: "(?P<number>[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)"
+    title: "(?P<title>.*)"
+  custom:
+    regex_groups: ['type', 'number','rqd_ws',  'title']
+    type: "(?P<type>Chapter|Section|Part|Annex|Appendix)"
+    number: "(?P<number>[A-Za-z0-9]+(?:\\.[A-Za-z0-9]+)*)"
+    title: "(?P<title>.*)"

@@ -469,7 +469,7 @@ def save_text_lines(pages_output, output_file):
 def main():
     parser = argparse.ArgumentParser(description='Analyze a PDF file and extract text with bounding boxes.')
     parser.add_argument('pdf_path', help='Path to the PDF file to analyze')
-    parser.add_argument('-d', '--dir', default='analyze_pdf_output', help='Application output directory')
+    parser.add_argument('-d', '--dir', default='pdf_analyze', help='Application output directory')
     parser.add_argument('-o', '--output', help='Base name for output directory (default: input file base name)')
     parser.add_argument('--extract_file', default='extracted_text.json', help='Name of the extracted text JSON file')
     parser.add_argument('--header_size', type=float, default=0.07, help='Header size as a percentage of the page height (e.g., 0.1 for 10%%)')
@@ -477,7 +477,7 @@ def main():
     parser.add_argument('--savewords', action='store_true', help='Save all words with bounding boxes to a separate JSON file')
     parser.add_argument('--debug_match', '-dbm', action='store_true', default=False, help='Debug the search to match lines in text to create bbox for line')
     parser.add_argument('--show_missing', action='store_true', help='Generate a PDF showing unassociated words with bounding boxes')
-    
+
     args = parser.parse_args()
 
     # Create output directory
@@ -490,7 +490,7 @@ def main():
     images, tables, location_info = extract_images_and_tables(args.pdf_path, output_dir)
 
     # Analyze PDF for text
-    pages_output, all_words_output = analyze_pdf(args.pdf_path, args.header_size, args.footer_size,args.debug_match)
+    pages_output, all_words_output = analyze_pdf(args.pdf_path, args.header_size, args.footer_size, args.debug_match)
 
     # Save extracted text
     extract_path = os.path.join(output_dir, args.extract_file)
