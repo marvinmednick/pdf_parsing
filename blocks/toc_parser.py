@@ -2,17 +2,7 @@ import json
 import re
 
 
-def parse_toc(toc_data, toc_parsing_config):
-    if toc_parsing_config is None:
-        toc_parsing_config = {}
-
-    entry_regex = re.compile(toc_parsing_config.get('entry_regex', '^((?:\\d+\\.)+)\\s+(.+)\\s+(\\d+)$'))
-    entry_fields = toc_parsing_config.get('entry_fields', [
-        {'name': 'section_number', 'group': 1},
-        {'name': 'title', 'group': 2},
-        {'name': 'page_number', 'group': 3}
-    ])
-
+def process_toc(toc_data, toc_file_path, toc_parsing_config, regex_pattern):
     toc_entries = []
 
     for page_data in toc_data:
@@ -21,31 +11,20 @@ def parse_toc(toc_data, toc_parsing_config):
         for block in page_data["blocks"]:
             for segment in block["text_segments"]:
                 text = segment["text"].strip()
-                print(f"Examining {text}")
-
-                if text.startswith(("Table of Contents", "Contents")):
-                    continue
-
-                match = entry_regex.match(text)
-                if match:
-                    entry = {}
-                    for field in entry_fields:
-                        group = field['group']
-                        if isinstance(group, list):
-                            for g in group:
-                                if match.group(g):
-                                    entry[field['name']] = match.group(g)
-                                    break
-                        else:
-                            entry[field['name']] = match.group(group)
-                    entry['page_number'] = page_number
-                    toc_entries.append(entry)
-
-    return toc_entries
-
-
-def process_toc(toc_data, toc_file_path, toc_parsing_config):
-    toc_entries = parse_toc(toc_data, toc_parsing_config)
+                lines = text.splitlines()
+                for line in lines:
+                    match = regex_pattern.match(line)
+                    if match:
+                        entry = {}
+                        for group in toc_parsing_config['regex_groups']:
+                            if isinstance(toc_parsing_config[group], dict):
+                                entry[group] = match.group(group)
+                            else:
+                                entry[group] = match.group(group)
+                        entry['page_number'] = page_number
+                        toc_entries.append(entry)
+                    else:
+                        print(f"No Match {line}")
 
     with open(toc_file_path, 'w', encoding='utf-8') as f:
         json.dump(toc_entries, f, ensure_ascii=False, indent=4)

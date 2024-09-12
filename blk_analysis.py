@@ -3,9 +3,9 @@ import os
 import yaml
 import pymupdf
 import json
+import re
 from blocks.pdf_processor import preprocess_pdf, analyze_pdf
 from blocks.toc_parser import process_toc
-
 
 def parse_arguments():
     """
@@ -22,11 +22,11 @@ def parse_arguments():
     parser.add_argument('-main', '--main_pages', help='List of page ranges for the main document (e.g., "1-3,5,7-")')
     parser.add_argument('-exclude', '--exclude_pages', help='List of page ranges to exclude (e.g., "4,6,8-10")')
     parser.add_argument('-toc', '--toc_pages', help='List of page ranges for the table of contents (e.g., "2-3")')
-    parser.add_argument('-cfg','--config_file', help='Path to the YAML configuration file')
-    parser.add_argument('-skip','--skip_preprocessing', action='store_true', help='Skip the preprocessing phase and use the filtered data input file')
+    parser.add_argument('-cfg', '--config_file', help='Path to the YAML configuration file')
+    parser.add_argument('-skip', '--skip_preprocessing', action='store_true', help='Skip the preprocessing phase and use the filtered data input file')
     parser.add_argument('--filtered_data_file', help='Path to the filtered data input file')
-    parser.add_argument('-tcfg','--toc_parsing_config', help='TOC parsing configuration to use from the global config file')
-    parser.add_argument('-scfg','--section_parsing_config', help='Section parsing configuration to use from the global config file')
+    parser.add_argument('-tcfg', '--toc_parsing_config', help='TOC parsing configuration to use from the global config file')
+    parser.add_argument('-scfg', '--section_parsing_config', help='Section parsing configuration to use from the global config file')
     return parser.parse_args()
 
 
@@ -35,6 +35,39 @@ def load_global_config(config_file):
         with open(config_file, 'r') as f:
             return yaml.safe_load(f)
     return {}
+
+
+def build_regex(config_section):
+    # Extract configuration settings
+    regex_groups = config_section.get("regex_groups", [])
+
+    # Build the regex pattern
+    regex_parts = []
+    for group in regex_groups:
+        # check if group is in this this configuration, if not check the common regex config
+        group_config = config_section.get(group)
+        if group_config is None:
+            raise ValueError(f"Configuration for group '{group}' not found")
+
+        # if the group is a dict, proess the fields
+        if isinstance(group_config, dict):
+            group_regex = group_config.get('regex')
+            group_required = group_config.get('required', False)
+
+        # otherwise use the group as the regex string and marke as not required
+        elif isinstance(group_config, str):
+            group_regex = group_config
+            group_required = False
+
+        # Add this item to the regex
+        if group_required:
+            regex_parts.append(group_regex)
+        else:
+            regex_parts.append(f"({group_regex})?")
+
+    toc_pattern = r''.join(regex_parts)
+
+    return toc_pattern
 
 
 def main():
@@ -50,8 +83,16 @@ def main():
         for key, value in config.items():
             setattr(args, key, value)
 
+    common_regex = global_config.get('common_regex', {})
+    print('common', common_regex)
+
     toc_parsing_config = global_config.get('toc_parsing_configurations', {}).get(args.toc_parsing_config or 'default', {})
+    print('TOC1', toc_parsing_config)
+    toc_parsing_config = common_regex | toc_parsing_config
+    print('TOC2', toc_parsing_config)
+
     section_parsing_config = global_config.get('section_parsing_configurations', {}).get(args.section_parsing_config or 'default', {})
+    section_parsing_config = common_regex | section_parsing_config
 
     output_dir = args.output_dir if args.output_dir else os.path.basename(args.input_file)[:-4]
     app_dir = args.appdir
@@ -98,10 +139,16 @@ def main():
         with open(os.path.join(output_dir_path, "locations.json"), "w", encoding="utf-8") as f:
             json.dump(location_info, f, ensure_ascii=False, indent=4)
 
-    toc_file_path = os.path.join(output_dir_path, "table_of_contents.json")
-    toc_entries = process_toc(toc_data, toc_file_path, toc_parsing_config)
+    toc_re_string = build_regex(toc_parsing_config)
+    print(toc_re_string)
+    toc_regex_pattern = re.compile(toc_re_string)
 
-    sections = analyze_pdf(filtered_pages_data, section_parsing_config)
+    section_regex_pattern = re.compile(build_regex(section_parsing_config))
+
+    toc_file_path = os.path.join(output_dir_path, "table_of_contents.json")
+    toc_entries = process_toc(toc_data, toc_file_path, toc_parsing_config, toc_regex_pattern)
+
+    sections = analyze_pdf(filtered_pages_data, section_parsing_config, section_regex_pattern)
 
     sections_output_file = os.path.join(output_dir_path, f"{os.path.basename(args.input_file)[:-4]}_sections.json")
     with open(sections_output_file, 'w', encoding='utf-8') as f:

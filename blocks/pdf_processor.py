@@ -100,51 +100,37 @@ def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output
     return pages_data, filtered_pages_data, toc_data, images, tables, location_info
 
 
-def analyze_pdf(filtered_data, section_parsing_config):
-    if section_parsing_config is None:
-        section_parsing_config = {}
-
-    default_regex = '(?:Section|Appendix|Annex)\\s+(\\d[\\d\\.]*)\\s+([A-Za-z]+.*)|(\\d[\\d\\.]*)\\s+([A-Za-z]+.*)|([A-Z][\\d\\.]*)\\s+([A-Za-z]+.*)'
-    section_regex = re.compile(section_parsing_config.get('section_regex', default_regex))
-    section_fields = section_parsing_config.get('section_fields', [
-        {'name': 'section_number', 'group': [1, 3, 5]},
-        {'name': 'title', 'group': [2, 4, 6]}
-    ])
-
+def analyze_pdf(filtered_data, section_parsing_config, regex_pattern):
     sections = []
     current_section = None
-
+    
     for page_data in filtered_data:
         page_number = page_data["page_number"]
-
+        
         for block in page_data["blocks"]:
             for segment in block["text_segments"]:
                 text = segment["text"].strip()
-
-                match = section_regex.match(text)
+                
+                match = regex_pattern.match(text)
                 if match:
                     if current_section:
                         current_section["end_page"] = page_number - 1
                         sections.append(current_section)
-
+                    
                     current_section = {}
-                    for field in section_fields:
-                        group = field['group']
-                        if isinstance(group, list):
-                            for g in group:
-                                if match.group(g):
-                                    current_section[field['name']] = match.group(g)
-                                    break
+                    for group in section_parsing_config['regex_groups']:
+                        if isinstance(section_parsing_config[group], dict):
+                            current_section[group] = match.group(group)
                         else:
-                            current_section[field['name']] = match.group(group)
+                            current_section[group] = match.group(group)
                     current_section["start_page"] = page_number
                     current_section["end_page"] = None
                     current_section["body_text"] = ""
                 elif current_section:
                     current_section["body_text"] += text + "\n"
-
+    
     if current_section:
         current_section["end_page"] = filtered_data[-1]["page_number"]
         sections.append(current_section)
-
+    
     return sections

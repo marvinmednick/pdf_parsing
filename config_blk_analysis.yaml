@@ -1,31 +1,59 @@
 common_regex:
-  opt_ws: "\s*"
-  rqd_ws: "\s+"
+  opt_ws: "(?P<opt_ws>\\s*)"
+  rqd_ws:
+    regex: "(?P<rqd_ws>\\s+)"
+    required: True
+
 
 toc_parsing_configurations:
-  standard:
-    regex_groups: ['type', 'number', 'rqd_ws', 'title', 'spacing', 'page']
-    type: "(?P<type>Chapter|Section|Part|Annex|Appendix|Figure|Table)"
+  default:
+    regex_groups: ['number', 'rqd_ws', 'title', 'spacing', 'opt_ws', 'page']
+    number:
+      regex: "(?P<number>[A-Za-z0-9]{1,3}(?:[\\.-][A-Za-z0-9]{1,3}){0,5})"
+      required: True
+    title:
+      regex: "(?P<title>[^.…\\s](?:(?!\\.{3}|…|\\s{2,}).)*?)"
+      required: True
+    spacing:
+      # Match two or more dots
+      regex: "(?P<spacing>(?:[\\s\\.]{2,}|\\s…|\\s{2,})+)"
+      required: True
+    page:
+      regex: "(?P<page>\\d+)"
+      required: True
+
+toc_parsing_configurations_old:
+  default:
+    regex_groups: ['type', 'number', 'title', 'spacing', 'page']
+    type:
+      regex: "(?P<type>Chapter|Section|Part|Annex|Appendix|Figure|Table)"
+      required: True
     number: "(?P<number>[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)"
     title: "(?P<title>.*?)"
-    spacing: "{common_regex.rqd_ws}"
+    spacing: "rqd_ws"
     page: "(?P<page>\\d+)"
   custom:
-    regex_groups: ['type', 'number','rqd_ws',  'title', 'spacing', 'page']
-    type: "(?P<type>Chapter|Section|Part|Annex|Appendix)"
+    regex_groups: ['type', 'number', 'title', 'spacing', 'page']
+    type:
+      regex: "(?P<type>Chapter|Section|Part|Annex|Appendix)"
+      required: False
     number: "(?P<number>[A-Za-z0-9]+(?:\\.[A-Za-z0-9]+)*)"
     title: "(?P<title>.*?)"
-    spacing: "{common_regex.rqd_ws}"
+    spacing: "rqd_ws"
     page: "(?P<page>[ivxlcdm]+|\\d+)"
 
 section_parsing_configurations:
-  standard:
-    regex_groups: ['type', 'number','rqd_ws',  'title']
-    type: "(?P<type>Chapter|Section|Part|Annex|Appendix|Figure|Table)"
+  default:
+    regex_groups: ['type', 'number', 'title']
+    type:
+      regex: "(?P<type>Chapter|Section|Part|Annex|Appendix|Figure|Table)"
+      required: True
     number: "(?P<number>[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)"
     title: "(?P<title>.*)"
   custom:
-    regex_groups: ['type', 'number','rqd_ws',  'title']
-    type: "(?P<type>Chapter|Section|Part|Annex|Appendix)"
+    regex_groups: ['type', 'number', 'title']
+    type:
+      regex: "(?P<type>Chapter|Section|Part|Annex|Appendix)"
+      required: False
     number: "(?P<number>[A-Za-z0-9]+(?:\\.[A-Za-z0-9]+)*)"
     title: "(?P<title>.*)"
