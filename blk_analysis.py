@@ -84,12 +84,9 @@ def main():
             setattr(args, key, value)
 
     common_regex = global_config.get('common_regex', {})
-    print('common', common_regex)
 
     toc_parsing_config = global_config.get('toc_parsing_configurations', {}).get(args.toc_parsing_config or 'default', {})
-    print('TOC1', toc_parsing_config)
     toc_parsing_config = common_regex | toc_parsing_config
-    print('TOC2', toc_parsing_config)
 
     section_parsing_config = global_config.get('section_parsing_configurations', {}).get(args.section_parsing_config or 'default', {})
     section_parsing_config = common_regex | section_parsing_config
@@ -139,14 +136,16 @@ def main():
         with open(os.path.join(output_dir_path, "locations.json"), "w", encoding="utf-8") as f:
             json.dump(location_info, f, ensure_ascii=False, indent=4)
 
-    toc_re_string = build_regex(toc_parsing_config)
-    print(toc_re_string)
-    toc_regex_pattern = re.compile(toc_re_string)
+    toc_regex_string = build_regex(toc_parsing_config)
+    print("TOC Regex: ", toc_regex_string)
+    toc_regex_pattern = re.compile(toc_regex_string)
 
-    section_regex_pattern = re.compile(build_regex(section_parsing_config))
+    section_regex_string = build_regex(section_parsing_config)
+    section_regex_pattern = re.compile(section_regex_string)
+    print("Section Regex: ", section_regex_string)
 
     toc_file_path = os.path.join(output_dir_path, "table_of_contents.json")
-    toc_entries = process_toc(toc_data, toc_file_path, toc_parsing_config, toc_regex_pattern)
+    _ = process_toc(toc_data, toc_file_path, toc_parsing_config, toc_regex_pattern)
 
     sections = analyze_pdf(filtered_pages_data, section_parsing_config, section_regex_pattern)
 

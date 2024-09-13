@@ -7,10 +7,16 @@ common_regex:
 
 toc_parsing_configurations:
   default:
-    regex_groups: ['number', 'rqd_ws', 'title', 'spacing', 'opt_ws', 'page']
+    regex_groups: ['type', 'number', 'rqd_ws', 'delim', 'title', 'spacing', 'opt_ws', 'page']
+    type:
+      regex: "(?P<type>Chapter|Section|Part|Annex|Appendix|Figure|Table)"
+      required: False
     number:
-      regex: "(?P<number>[A-Za-z0-9]{1,3}(?:[\\.-][A-Za-z0-9]{1,3}){0,5})"
+      regex: "(?P<number>[A-Za-z0-9]{1,3}(?:[\\.\\-][A-Za-z0-9]{1,3}){0,5})"
       required: True
+    delim:
+      regex: "(?P<delim>[\\s-]*)"
+      required: False
     title:
       regex: "(?P<title>[^.…\\s](?:(?!\\.{3}|…|\\s{2,}).)*?)"
       required: True
@@ -22,34 +28,15 @@ toc_parsing_configurations:
       regex: "(?P<page>\\d+)"
       required: True
 
-toc_parsing_configurations_old:
-  default:
-    regex_groups: ['type', 'number', 'title', 'spacing', 'page']
-    type:
-      regex: "(?P<type>Chapter|Section|Part|Annex|Appendix|Figure|Table)"
-      required: True
-    number: "(?P<number>[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)"
-    title: "(?P<title>.*?)"
-    spacing: "rqd_ws"
-    page: "(?P<page>\\d+)"
-  custom:
-    regex_groups: ['type', 'number', 'title', 'spacing', 'page']
-    type:
-      regex: "(?P<type>Chapter|Section|Part|Annex|Appendix)"
-      required: False
-    number: "(?P<number>[A-Za-z0-9]+(?:\\.[A-Za-z0-9]+)*)"
-    title: "(?P<title>.*?)"
-    spacing: "rqd_ws"
-    page: "(?P<page>[ivxlcdm]+|\\d+)"
-
 section_parsing_configurations:
   default:
-    regex_groups: ['type', 'number', 'title']
-    type:
-      regex: "(?P<type>Chapter|Section|Part|Annex|Appendix|Figure|Table)"
+    regex_groups: ['number', 'rqd_ws', 'title' ]
+    number:
+      regex: "(?P<number>[0-9]{1,3}(?:[\\.\\-][0-9]{1,3}){0,5})"
       required: True
-    number: "(?P<number>[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)"
-    title: "(?P<title>.*)"
+    title:
+      regex: "(?P<title>.*)"
+      required: True
   custom:
     regex_groups: ['type', 'number', 'title']
     type:

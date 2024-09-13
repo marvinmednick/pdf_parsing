@@ -1,2 +1,4 @@
 toc_pages: "6-22"
 exclude_pages: "1-22"
+header_size: 0.06
+footer_size: 0.05

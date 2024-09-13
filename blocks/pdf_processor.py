@@ -2,7 +2,7 @@ from tqdm import tqdm
 from blocks.block_extractor import process_block_text, check_exclusions
 from blocks.image_table_extractor import extract_images_and_tables
 from blocks.utils import parse_page_ranges
-import re
+import pymupdf
 
 def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output_dir, header_size, footer_size, main_pages, exclude_pages, toc_pages):
     """
@@ -37,6 +37,8 @@ def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output
 
             page_info = page.get_text("dict")
             blocks = page_info["blocks"]
+            header_limit = header_size * page_info['height']
+            footer_limit = (1 - footer_size) * page_info['height']
             page_data = {
                 "page_number": page.number,
                 "blocks": [],
@@ -46,10 +48,9 @@ def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output
                 'footers': [],
                 'height': page_info['height'],
                 'width': page_info['width'],
+                'header_limit': header_limit,
+                'footer_limit': footer_limit,
             }
-
-            header_limit = header_size * page_info['height']
-            footer_limit = (1 - footer_size) * page_info['height']
 
             for block in blocks:
                 block_data = process_block_text(block)
@@ -100,23 +101,75 @@ def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output
     return pages_data, filtered_pages_data, toc_data, images, tables, location_info
 
 
+level_start = "1"
+allow_dot_zero = True
+
+
+def is_valid_next_section_number(prev_section, separator, next_section=None):
+
+    # if no previous section, the first section must be one of the f
+    # following
+    if prev_section is None:
+        if next_section in ["1", "1.0", "0", "0.0", "0.1"]:
+            return True
+
+        return False
+
+    parts = prev_section.split(".")
+    valid_next = []
+
+    prev_section_parts = parts
+    prev_section_parts.append(level_start)
+    next_valid_section = separator.join(prev_section_parts)
+    valid_next.append(next_valid_section)
+    # print(f"Checking {next_valid_section}")
+    if next_section == next_valid_section:
+        print(f"Valid {next_valid_section} {next_section}")
+        return True
+
+    while prev_section_parts := prev_section_parts[:-1]:
+        prev_section_parts[-1] = str(int(prev_section_parts[-1]) + 1)
+        next_valid_section = separator.join(prev_section_parts)
+        # print(f"Checking {next_valid_section}")
+        if next_section == next_valid_section:
+            valid_next.append(next_valid_section)
+            print(f"Valid {next_valid_section}")
+            return True
+
+        # for the first level, also allow X.0
+        if allow_dot_zero and len(prev_section_parts) == 1:
+            next_valid_section = next_valid_section + separator + "0"
+            valid_next.append(next_valid_section)
+            # print(f"Checking {next_valid_section}")
+            if next_section == next_valid_section:
+                print(f"Valid {next_valid_section}")
+                return True
+
+    return False
+
+
 def analyze_pdf(filtered_data, section_parsing_config, regex_pattern):
     sections = []
+    last_section_number = None
     current_section = None
-    
+
     for page_data in filtered_data:
         page_number = page_data["page_number"]
-        
+
         for block in page_data["blocks"]:
             for segment in block["text_segments"]:
                 text = segment["text"].strip()
-                
+
                 match = regex_pattern.match(text)
                 if match:
-                    if current_section:
-                        current_section["end_page"] = page_number - 1
-                        sections.append(current_section)
-                    
+                    if not is_valid_next_section_number(last_section_number, '.', match.group('number')):
+                        print(f"Section number {match.group('number')} isn't valid, continuing with previous section ({last_section_number})")
+                        if current_section:
+                            current_section["body_text"] += text + "\n"
+                        continue
+
+                    last_section_number = match.group('number')
+                    # start a new section
                     current_section = {}
                     for group in section_parsing_config['regex_groups']:
                         if isinstance(section_parsing_config[group], dict):
@@ -124,13 +177,14 @@ def analyze_pdf(filtered_data, section_parsing_config, regex_pattern):
                         else:
                             current_section[group] = match.group(group)
                     current_section["start_page"] = page_number
-                    current_section["end_page"] = None
+                    # since we found the line that has the title, there will not be text yet
+                    # so start the section with empty text
                     current_section["body_text"] = ""
+
                 elif current_section:
+                    # no new section number, so append this text to the previous section
                     current_section["body_text"] += text + "\n"
-    
-    if current_section:
-        current_section["end_page"] = filtered_data[-1]["page_number"]
-        sections.append(current_section)
-    
+
+                sections.append(current_section)
+
     return sections
