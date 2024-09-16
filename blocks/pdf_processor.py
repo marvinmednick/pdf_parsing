@@ -101,54 +101,76 @@ def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output
     return pages_data, filtered_pages_data, toc_data, images, tables, location_info
 
 
-level_start = "1"
-allow_dot_zero = True
+def increment_numeric(value):
+    return str(int(value) + 1)
 
 
-def is_valid_next_section_number(prev_section, separator, next_section=None):
 
+numbering_info = {
+        'numeric': {
+            'initial_section_number': ["1", "1.0", "0", "0.0", "0.1"],
+            'level_starts': [0, 1],
+            'increment':  increment_numeric,
+        },
+        'annex_numeric': {
+            'initial_section_number': ["A", "A.1", "A.0"],
+            'level_starts': [0, 1],
+            'increment':  increment_numeric,
+        }
+}
+
+
+def is_valid_next_section_number(prev_section, separator, next_section=None, model='numeric'):
+
+    numbering_model = numbering_info[model]
     # if no previous section, the first section must be one of the f
     # following
     if prev_section is None:
-        if next_section in ["1", "1.0", "0", "0.0", "0.1"]:
+        if next_section in numbering_model['initial_section_number']:
             return True
 
         return False
 
     parts = prev_section.split(".")
-    valid_next = []
 
-    prev_section_parts = parts
-    prev_section_parts.append(level_start)
-    next_valid_section = separator.join(prev_section_parts)
-    valid_next.append(next_valid_section)
-    # print(f"Checking {next_valid_section}")
-    if next_section == next_valid_section:
-        print(f"Valid {next_valid_section} {next_section}")
-        return True
+    # check the next section against all of the possible sub-sections
+    # based on the list of what digits can a new set of subsections start with
+    for next_num in numbering_model['level_starts']:
+        # since we're looping through multiple options, 
+        # reset our 'prev_section_parts back to parts for each loop/option
+        prev_section_parts = parts
+        prev_section_parts.append(str(next_num))
+        next_valid_section = separator.join(prev_section_parts)
+
+        if next_section == next_valid_section:
+            print(f"Valid {next_valid_section} {next_section}")
+            return True
+
+    # prev_section_parts will have one (and only one) additional sublevel from above
+    # (which will be promptly rempved in the while lop below as
+    # the code checks for a possible match at leave sub-level
 
     while prev_section_parts := prev_section_parts[:-1]:
-        prev_section_parts[-1] = str(int(prev_section_parts[-1]) + 1)
+        prev_section_parts[-1] = numbering_model['increment'](prev_section_parts[-1])
         next_valid_section = separator.join(prev_section_parts)
-        # print(f"Checking {next_valid_section}")
+
         if next_section == next_valid_section:
-            valid_next.append(next_valid_section)
             print(f"Valid {next_valid_section}")
             return True
 
-        # for the first level, also allow X.0
-        if allow_dot_zero and len(prev_section_parts) == 1:
-            next_valid_section = next_valid_section + separator + "0"
-            valid_next.append(next_valid_section)
-            # print(f"Checking {next_valid_section}")
-            if next_section == next_valid_section:
-                print(f"Valid {next_valid_section}")
-                return True
+        # for the first level, also allow X.<level start options>
+        if len(prev_section_parts) == 1:
+            for next_num in numbering_model['level_starts']:
+                next_check = next_valid_section + separator + str(next_num)
+
+                if next_section == next_check:
+                    print(f"Valid {next_valid_section}")
+                    return True
 
     return False
 
 
-def analyze_pdf(filtered_data, section_parsing_config, regex_pattern):
+def analyze_pdf(filtered_data, section_parsing_config, section_heading_pattern, annex_pattern=None):
     sections = []
     last_section_number = None
     current_section = None
@@ -160,30 +182,48 @@ def analyze_pdf(filtered_data, section_parsing_config, regex_pattern):
             for segment in block["text_segments"]:
                 text = segment["text"].strip()
 
-                match = regex_pattern.match(text)
-                if match:
-                    if not is_valid_next_section_number(last_section_number, '.', match.group('number')):
-                        print(f"Section number {match.group('number')} isn't valid, continuing with previous section ({last_section_number})")
+                #
+                section_match = section_heading_pattern.match(text)
+                annex_match = (annex_pattern and annex_pattern.match(text)) or None
+
+                if section_match:
+                    if not is_valid_next_section_number(last_section_number, '.', section_match.group('number')):
+                        print(f"Section number {section_match.group('number')} isn't valid, continuing with previous section ({last_section_number})")
                         if current_section:
                             current_section["body_text"] += text + "\n"
                         continue
 
-                    last_section_number = match.group('number')
+                    last_section_number = section_match.group('number')
                     # start a new section
-                    current_section = {}
+                    current_section = {
+                        "start_page": page_number,
+                        "body_text":  ""
+                    }
+                    # add in all the sections from the regex groups matches
                     for group in section_parsing_config['regex_groups']:
                         if isinstance(section_parsing_config[group], dict):
-                            current_section[group] = match.group(group)
+                            current_section[group] = section_match.group(group)
                         else:
-                            current_section[group] = match.group(group)
-                    current_section["start_page"] = page_number
+                            current_section[group] = section_match.group(group)
                     # since we found the line that has the title, there will not be text yet
                     # so start the section with empty text
-                    current_section["body_text"] = ""
-
+                
+                elif annex_match:
+                    annex_id = is_annex_start()
+                    # start a new section
+                    current_section = {
+                        "start_page": page_number,
+                        "body_text":  "",
+                        "annex_id" : annex_id,
+                    }
                 elif current_section:
                     # no new section number, so append this text to the previous section
                     current_section["body_text"] += text + "\n"
+
+                # else, no current section yet, so no where to put the text, so drop it?
+                else:
+                    print(f"Text without section: {text}")
+
 
                 sections.append(current_section)
 
