@@ -2,6 +2,7 @@ from tqdm import tqdm
 from blocks.block_extractor import process_block_text, check_exclusions
 from blocks.image_table_extractor import extract_images_and_tables
 from blocks.utils import parse_page_ranges
+from blocks.segments import SegmentAnalyzer
 import pymupdf
 
 def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output_dir, header_size, footer_size, main_pages, exclude_pages, toc_pages):
@@ -105,7 +106,6 @@ def increment_numeric(value):
     return str(int(value) + 1)
 
 
-
 numbering_info = {
         'numeric': {
             'initial_section_number': ["1", "1.0", "0", "0.0", "0.1"],
@@ -170,19 +170,22 @@ def is_valid_next_section_number(prev_section, separator, next_section=None, mod
     return False
 
 
-def analyze_pdf(filtered_data, section_parsing_config, section_heading_pattern, annex_pattern=None):
+def analyze_pdf(filtered_data, analysis_config, section_parsing_config, section_heading_pattern, annex_pattern=None):
     sections = []
     last_section_number = None
     current_section = None
 
+    sa = SegmentAnalyzer(analysis_config)
+
     for page_data in filtered_data:
         page_number = page_data["page_number"]
+        print(f"Analyzing page {page_number}")
 
         for block in page_data["blocks"]:
             for segment in block["text_segments"]:
                 text = segment["text"].strip()
 
-                #
+                sa.analyze_segment(text)
                 section_match = section_heading_pattern.match(text)
                 annex_match = (annex_pattern and annex_pattern.match(text)) or None
 

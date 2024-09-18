@@ -27,6 +27,7 @@ def parse_arguments():
     parser.add_argument('--filtered_data_file', help='Path to the filtered data input file')
     parser.add_argument('-tcfg', '--toc_parsing_config', help='TOC parsing configuration to use from the global config file')
     parser.add_argument('-scfg', '--section_parsing_config', help='Section parsing configuration to use from the global config file')
+    parser.add_argument('-nf', '--nofiles', action='store_true', help='Do not save files at completion')
     return parser.parse_args()
 
 
@@ -115,26 +116,27 @@ def main():
             args.header_size, args.footer_size, args.main_pages, args.exclude_pages, args.toc_pages
         )
 
-        json_output_file = os.path.join(output_dir_path, f"{os.path.basename(args.input_file)[:-4]}_blocks.json")
-        with open(json_output_file, 'w', encoding='utf-8') as f:
-            json.dump(pages_data, f, ensure_ascii=False, indent=4)
+        if not args.nofiles:
+            json_output_file = os.path.join(output_dir_path, f"{os.path.basename(args.input_file)[:-4]}_blocks.json")
+            with open(json_output_file, 'w', encoding='utf-8') as f:
+                json.dump(pages_data, f, ensure_ascii=False, indent=4)
 
-        filtered_json_output_file = os.path.join(output_dir_path, f"filtered_{os.path.basename(args.input_file)[:-4]}_blocks.json")
-        with open(filtered_json_output_file, 'w', encoding='utf-8') as f:
-            json.dump(filtered_pages_data, f, ensure_ascii=False, indent=4)
+            filtered_json_output_file = os.path.join(output_dir_path, f"filtered_{os.path.basename(args.input_file)[:-4]}_blocks.json")
+            with open(filtered_json_output_file, 'w', encoding='utf-8') as f:
+                json.dump(filtered_pages_data, f, ensure_ascii=False, indent=4)
 
-        toc_json_output_file = os.path.join(output_dir_path, f"toc_{os.path.basename(args.input_file)[:-4]}_blocks.json")
-        with open(toc_json_output_file, 'w', encoding='utf-8') as f:
-            json.dump(toc_data, f, ensure_ascii=False, indent=4)
+            toc_json_output_file = os.path.join(output_dir_path, f"toc_{os.path.basename(args.input_file)[:-4]}_blocks.json")
+            with open(toc_json_output_file, 'w', encoding='utf-8') as f:
+                json.dump(toc_data, f, ensure_ascii=False, indent=4)
 
-        with open(os.path.join(output_dir_path, "images.json"), "w", encoding="utf-8") as f:
-            json.dump(images, f, ensure_ascii=False, indent=4)
+            with open(os.path.join(output_dir_path, "images.json"), "w", encoding="utf-8") as f:
+                json.dump(images, f, ensure_ascii=False, indent=4)
 
-        with open(os.path.join(output_dir_path, "tables.json"), "w", encoding="utf-8") as f:
-            json.dump(tables, f, ensure_ascii=False, indent=4)
+            with open(os.path.join(output_dir_path, "tables.json"), "w", encoding="utf-8") as f:
+                json.dump(tables, f, ensure_ascii=False, indent=4)
 
-        with open(os.path.join(output_dir_path, "locations.json"), "w", encoding="utf-8") as f:
-            json.dump(location_info, f, ensure_ascii=False, indent=4)
+            with open(os.path.join(output_dir_path, "locations.json"), "w", encoding="utf-8") as f:
+                json.dump(location_info, f, ensure_ascii=False, indent=4)
 
     toc_regex_string = build_regex(toc_parsing_config)
     print("TOC Regex: ", toc_regex_string)
@@ -147,11 +149,13 @@ def main():
     toc_file_path = os.path.join(output_dir_path, "table_of_contents.json")
     _ = process_toc(toc_data, toc_file_path, toc_parsing_config, toc_regex_pattern)
 
-    sections = analyze_pdf(filtered_pages_data, section_parsing_config, section_regex_pattern)
+    analysis_config = global_config.get('analysis_config', {})
+    sections = analyze_pdf(filtered_pages_data, analysis_config, section_parsing_config, section_regex_pattern)
 
-    sections_output_file = os.path.join(output_dir_path, f"{os.path.basename(args.input_file)[:-4]}_sections.json")
-    with open(sections_output_file, 'w', encoding='utf-8') as f:
-        json.dump(sections, f, ensure_ascii=False, indent=4)
+    if not args.nofiles:
+        sections_output_file = os.path.join(output_dir_path, f"{os.path.basename(args.input_file)[:-4]}_sections.json")
+        with open(sections_output_file, 'w', encoding='utf-8') as f:
+            json.dump(sections, f, ensure_ascii=False, indent=4)
 
 
 if __name__ == "__main__":

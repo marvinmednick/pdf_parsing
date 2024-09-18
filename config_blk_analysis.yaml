@@ -44,3 +44,72 @@ section_parsing_configurations:
       required: False
     number: "(?P<number>[A-Za-z0-9]+(?:\\.[A-Za-z0-9]+)*)"
     title: "(?P<title>.*)"
+
+
+analysis_config:
+  division_types:
+    default: 
+      numbering_rules: null
+      division_search_rules: [main] 
+
+    main:
+      numbering_rules: numeric
+      division_search_rules: [annex] 
+
+    annex:
+      numbering_rules: annex
+      division_search_rules: [annex] 
+
+
+  division_search_rules:
+    main:
+      regex: "Advanced video coding for generic audiovisual services"
+        # number_match: null
+        # prefix_match: null
+
+    annex:
+      regex:  "Annex\\s+(?P<prefix>[A-Z])$"
+      number_match: null
+      prefix_match: prefix
+      
+
+  numbering_rules:
+    numeric:
+      parsing_rules: numeric
+      sequence_rules:
+        initial_section_number: ["1", "1.0", "0", "0.0", "0.1"]
+        level_starts: [0, 1]
+        increment:  numeric
+    annex:
+      parsing_rules: annex_numeric
+      sequence_rules: 
+        # annexes will have their initial value set by the division parsing
+        initial_section_number: ["","1","0"]
+        level_starts: [0, 1]
+        increment:  numeric
+
+
+  parsing_rules:
+    common:
+      opt_ws: "(?P<opt_ws>\\s*)"
+      rqd_ws:
+        regex: "(?P<rqd_ws>\\s+)"
+        required: True
+
+    numeric:
+      regex_groups: ['number', 'rqd_ws', 'title' ]
+      number:
+        regex: "(?P<number>[0-9]{1,3}(?:[\\.\\-][0-9]{1,3}){0,5})"
+        required: True
+      title:
+        regex: "(?P<title>.*)"
+        required: True
+
+    annex_numeric:
+      regex_groups: ['number', 'rqd_ws', 'title' ]
+      number:
+        regex: "(?P<number>[A-Z]{1,2}([\\.\\-][0-9]{1,3}){1,6})"
+        required: True
+      title:
+        regex: "(?P<title>.*)"
+        required: True
