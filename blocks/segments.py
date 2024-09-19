@@ -40,6 +40,7 @@ from pprint import pprint
 def increment_numeric(value):
     return str(int(value) + 1)
 
+
 increment_functions = {
         'numeric': increment_numeric,
 }
@@ -186,8 +187,8 @@ class SegmentAnalyzer():
         for dtype in self.division_config['division_search_rules']:
             dtype_config = self.config['division_search_rules'][dtype]
             div_search_config = dtype_config['regex']
-            if self.last_div_search_config != div_search_config:
-                print(f"New search config {div_search_config}")
+            # if self.last_div_search_config != div_search_config:
+            #     print(f"New search config {div_search_config}")
             self.last_div_search_config = div_search_config
             div_regex = re.compile(div_search_config)
             div_match = div_regex.match(text)
@@ -230,14 +231,14 @@ class SegmentAnalyzer():
                 # print(f"Checking {next_section_number} {text}")
                 if self.is_valid_next_section_number(separator, next_section_number):
                     # TODO -- close previous section
-                    print(f"SA - Valid New Section {next_section_number}")
+                    # print(f"SA - Valid New Section {next_section_number}")
                     if self.section_record:
                         section_text_file = os.path.join(self.text_dir, self.section_record['textfile'])
                         with open(section_text_file, "w") as output:
                             output.write(self.section_text)
 
                         self.section_list.append(self.section_record)
-                        pprint(self.section_record)
+                        # pprint(self.section_record)
 
                     self.section_number = next_section_number
                     self.section_text = ""

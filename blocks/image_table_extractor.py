@@ -4,7 +4,7 @@ from blocks.utils import rect_to_dict
 def extract_images_and_tables(doc, page, page_num, output_dir, doc_image_index, doc_table_index):
     images = []
     tables = []
-    page_locations = {"images": [], "tables": []}
+    page_locations = {"page": page_num, "images": [], "tables": []}
 
     # Extract images
     image_list = page.get_images(full=True)

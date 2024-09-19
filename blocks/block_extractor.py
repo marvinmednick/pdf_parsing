@@ -51,6 +51,7 @@ def process_block_text(block):
 
     return block_data
 
+
 def check_exclusions(block, page_locations, header_limit, footer_limit):
     block_bbox = block["bbox"]
     block_top = block_bbox['top']
@@ -58,25 +59,26 @@ def check_exclusions(block, page_locations, header_limit, footer_limit):
 
     # Check if the block is above the header limit
     if block_top < header_limit:
-        return "header", True
+        return {'type': "header", 'limit': header_limit},  True
 
     # Check if the block is below the footer limit
     if block_bottom > footer_limit:
-        return "footer", True
+        return {'type': "footer", 'limit': footer_limit},  True
 
     # Check if the block overlaps with any image block
     for image_location in page_locations["images"]:
         image_bbox = image_location["bbox"]
         if overlaps(block_bbox, image_bbox):
-            return "image", True
+            return {'type': "image", 'image': image_location['file']},  True
 
     # Check if the block overlaps with any table block
     for table_location in page_locations["tables"]:
         table_bbox = table_location["bbox"]
         if overlaps(block_bbox, table_bbox):
-            return "table", True
+            return {'type': "table", 'image': table_location['file']},  True
 
     return None, False
+
 
 def overlaps(bbox1, bbox2):
     return bbox1['x0'] < bbox2['x1'] and bbox1['x1'] > bbox2['x0'] and bbox1['top'] < bbox2['bottom'] and bbox1['bottom'] > bbox2['top']

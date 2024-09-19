@@ -11,7 +11,7 @@ def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output
     """
     images = []
     tables = []
-    locations_by_page = []
+    location_info = []
     doc_image_index = 0
     doc_table_index = 0
     pages_data = []
@@ -34,14 +34,14 @@ def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output
 
             images.extend(page_images)
             tables.extend(page_tables)
-            locations_by_page.append(page_locations)
+            location_info.append(page_locations)
 
             page_info = page.get_text("dict")
             blocks = page_info["blocks"]
             header_limit = header_size * page_info['height']
             footer_limit = (1 - footer_size) * page_info['height']
             page_data = {
-                "page_number": page.number,
+                "page_number": page_num,
                 "blocks": [],
                 'filtered_blocks': [],
                 'excluded_blocks': [],
@@ -59,9 +59,11 @@ def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output
 
                 exclusion_reason, is_excluded = check_exclusions(block_data, page_locations, header_limit, footer_limit)
                 if is_excluded:
-                    if exclusion_reason == "header":
+                    block_data['exclusion'] = exclusion_reason
+
+                    if exclusion_reason['type'] == "header":
                         page_data["headers"].append(block_data)
-                    elif exclusion_reason == "footer":
+                    elif exclusion_reason['type'] == "footer":
                         page_data["footers"].append(block_data)
                     else:
                         page_data["excluded_blocks"].append(block_data)
@@ -76,7 +78,7 @@ def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output
 
             if page_num not in exclude_page_numbers and page_num not in toc_page_numbers:
                 filtered_pages_data.append({
-                    "page_number": page.number,
+                    "page_number": page_num,
                     "blocks": page_data["filtered_blocks"],
                     'height': page_info['height'],
                     'width': page_info['width'],
@@ -84,7 +86,7 @@ def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output
 
             if page_num in toc_page_numbers:
                 toc_data.append({
-                    "page_number": page.number,
+                    "page_number": page_num,
                     "blocks": page_data["filtered_blocks"],
                     'height': page_info['height'],
                     'width': page_info['width'],
@@ -94,10 +96,6 @@ def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output
 
     if outline_blocks:
         doc.save(output_file)
-
-    location_info = {
-        'locations_by_page': locations_by_page,
-    }
 
     return pages_data, filtered_pages_data, toc_data, images, tables, location_info
 
@@ -171,57 +169,19 @@ def is_valid_next_section_number(prev_section, separator, next_section=None, mod
 
 
 def analyze_pdf(filtered_data, analysis_config, section_parsing_config, section_heading_pattern, section_text_dir):
-    sections = []
-    last_section_number = None
-    current_section = None
 
     sega = SegmentAnalyzer(analysis_config, section_text_dir)
 
     for page_data in filtered_data:
         page_number = page_data["page_number"]
-        print(f"Analyzing page {page_number}")
+        # print(f"Analyzing page {page_number}")
 
         for block in page_data["blocks"]:
             block_text = "".join(item["text"] for item in block["text_segments"]).strip()
-            if debug := (page_number > 305 and page_number < 310):
-                print(f"Analyzing {block_text}")
+            debug = False
+            # if debug := (page_number > 305 and page_number < 310):
+            #     print(f"Analyzing {block_text}")
 
             sega.analyze_segment(block_text, page_number, debug=debug)
-            for segment in block["text_segments"]:
-                text = segment["text"].strip()
 
-                section_match = section_heading_pattern.match(text)
-
-                if section_match:
-                    if not is_valid_next_section_number(last_section_number, '.', section_match.group('number')):
-                        print(f"Section number {section_match.group('number')} isn't valid, continuing with previous section ({last_section_number})")
-                        if current_section:
-                            current_section["body_text"] += text + "\n"
-                        continue
-
-                    last_section_number = section_match.group('number')
-                    # start a new section
-                    current_section = {
-                        "start_page": page_number,
-                        "body_text":  ""
-                    }
-                    # add in all the sections from the regex groups matches
-                    for group in section_parsing_config['regex_groups']:
-                        if isinstance(section_parsing_config[group], dict):
-                            current_section[group] = section_match.group(group)
-                        else:
-                            current_section[group] = section_match.group(group)
-                    # since we found the line that has the title, there will not be text yet
-                    # so start the section with empty text
-
-                elif current_section:
-                    # no new section number, so append this text to the previous section
-                    current_section["body_text"] += text + "\n"
-
-                # else, no current section yet, so no where to put the text, so drop it?
-                else:
-                    print(f"Text without section: {text}")
-
-                sections.append(current_section)
-
-    return sections, sega.get_section_list()
+    return sega.get_section_list()
