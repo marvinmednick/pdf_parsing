@@ -28,24 +28,6 @@ toc_parsing_configurations:
       regex: "(?P<page>\\d+)"
       required: True
 
-section_parsing_configurations:
-  default:
-    regex_groups: ['number', 'rqd_ws', 'title' ]
-    number:
-      regex: "(?P<number>[0-9]{1,3}(?:[\\.\\-][0-9]{1,3}){0,5})"
-      required: True
-    title:
-      regex: "(?P<title>.*)"
-      required: True
-  custom:
-    regex_groups: ['type', 'number', 'title']
-    type:
-      regex: "(?P<type>Chapter|Section|Part|Annex|Appendix)"
-      required: False
-    number: "(?P<number>[A-Za-z0-9]+(?:\\.[A-Za-z0-9]+)*)"
-    title: "(?P<title>.*)"
-
-
 analysis_config:
   division_types:
     default: 

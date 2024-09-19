@@ -168,7 +168,7 @@ def is_valid_next_section_number(prev_section, separator, next_section=None, mod
     return False
 
 
-def analyze_pdf(filtered_data, analysis_config, section_parsing_config, section_heading_pattern, section_text_dir):
+def analyze_pdf(filtered_data, analysis_config, section_text_dir):
 
     sega = SegmentAnalyzer(analysis_config, section_text_dir)
 
