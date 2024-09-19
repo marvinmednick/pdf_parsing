@@ -1,4 +1,5 @@
 import re
+import os
 from functools import partial
 
 # section_number = None
@@ -38,7 +39,6 @@ from pprint import pprint
 
 def increment_numeric(value):
     return str(int(value) + 1)
-
 
 increment_functions = {
         'numeric': increment_numeric,
@@ -81,13 +81,17 @@ def build_regex(config_section):
 
 class SegmentAnalyzer():
 
-    def __init__(self, config, division_type='default'):
+    def __init__(self, config, text_dir, division_type='default'):
+        self.section_id = 0
+        self.text_dir = text_dir
         self.config = config
         self.section_number = None
         self.section_prefix = None
         self.section_text = ""
         self.set_division(division_type)
         self.last_div_search_config = None
+        self.section_record = None
+        self.section_list = []
 
     def set_division(self, division_type):
         dtypes = self.config.get('division_types', {})
@@ -97,6 +101,9 @@ class SegmentAnalyzer():
             return
 
         self.division_config = dtypes[division_type]
+
+    def get_section_list(self):
+        return self.section_list
 
     def is_valid_next_section_number(self, separator, next_section=None):
 
@@ -141,20 +148,26 @@ class SegmentAnalyzer():
             next_valid_section = separator.join(prev_section_parts)
 
             if next_section == next_valid_section:
-                print(f"SA: Valid {next_valid_section} {next_section}")
+                # print(f"SA: Valid {next_valid_section} {next_section}")
                 return True
 
         # prev_section_parts will have one (and only one) additional sublevel from above
         # (which will be promptly rempved in the while lop below as
         # the code checks for a possible match at leave sub-level
 
+        # if there is a prefix, remove it from string we check (as it won't be in the prev section either)
+        if self.section_prefix:
+            next_section = separator.join(next_section.split(separator)[1:])
+            prev_section_parts = prev_section_parts[1:]
+
         while prev_section_parts := prev_section_parts[:-1]:
+            # print(f"Checking {prev_section_parts}")
             increment_func = increment_functions[numbering_model['increment']]
             prev_section_parts[-1] = increment_func(prev_section_parts[-1])
             next_valid_section = separator.join(prev_section_parts)
 
-            if next_section == next_valid_section:
-                print(f"SA: Valid {next_valid_section}")
+            if next_section== next_valid_section:
+                # print(f"SA: Valid {next_valid_section}")
                 return True
 
             # for the first level, also allow X.<level start options>
@@ -163,12 +176,12 @@ class SegmentAnalyzer():
                     next_check = next_valid_section + separator + str(next_num)
 
                     if next_section == next_check:
-                        print(f"SA: Valid {next_valid_section}")
+                        # print(f"SA: Valid {next_valid_section}")
                         return True
 
         return False
 
-    def analyze_segment(self, text):
+    def analyze_segment(self, text, page_number, debug=False):
         # check for start of new divisions
         for dtype in self.division_config['division_search_rules']:
             dtype_config = self.config['division_search_rules'][dtype]
@@ -178,6 +191,9 @@ class SegmentAnalyzer():
             self.last_div_search_config = div_search_config
             div_regex = re.compile(div_search_config)
             div_match = div_regex.match(text)
+            if debug:
+                print(f"ANALYZE SEG: Checking {text} with rule {div_search_config}")
+
             if div_match:
                 self.set_division(dtype)
                 number_field = dtype_config.get('number_match', None)
@@ -211,11 +227,35 @@ class SegmentAnalyzer():
             if numbering_match:
                 next_section_number = numbering_match.group('number')
                 separator = "."  # TODO configure this
-                print(f"Checking {next_section_number} {text}")
+                # print(f"Checking {next_section_number} {text}")
                 if self.is_valid_next_section_number(separator, next_section_number):
                     # TODO -- close previous section
+                    print(f"SA - Valid New Section {next_section_number}")
+                    if self.section_record:
+                        section_text_file = os.path.join(self.text_dir, self.section_record['textfile'])
+                        with open(section_text_file, "w") as output:
+                            output.write(self.section_text)
+
+                        self.section_list.append(self.section_record)
+                        pprint(self.section_record)
+
                     self.section_number = next_section_number
                     self.section_text = ""
+                    # since we found the line that has the title, there will not be text yet
+                    # so start the section with empty text
+                    self.section_record = {
+                        "id":  self.section_id,
+                        "start_page": page_number,
+                        "textfile":  f"section_{self.section_id}.txt"
+                    }
+                    self.section_id += 1
+
+                    # add in all the sections from the regex groups matches
+                    for group in parsing_config['regex_groups']:
+                        if isinstance(parsing_config[group], dict):
+                            self.section_record[group] = numbering_match.group(group)
+                        else:
+                            self.section_record[group] = numbering_match.group(group)
                     return
 
             self.section_text += text + "\n"

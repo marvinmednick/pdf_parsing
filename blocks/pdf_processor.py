@@ -74,7 +74,7 @@ def preprocess_pdf(doc, input_file, output_file, outline_blocks, app_dir, output
 
             pages_data.append(page_data)
 
-            if page_num not in exclude_page_numbers and not page_num in toc_page_numbers:
+            if page_num not in exclude_page_numbers and page_num not in toc_page_numbers:
                 filtered_pages_data.append({
                     "page_number": page.number,
                     "blocks": page_data["filtered_blocks"],
@@ -170,24 +170,27 @@ def is_valid_next_section_number(prev_section, separator, next_section=None, mod
     return False
 
 
-def analyze_pdf(filtered_data, analysis_config, section_parsing_config, section_heading_pattern, annex_pattern=None):
+def analyze_pdf(filtered_data, analysis_config, section_parsing_config, section_heading_pattern, section_text_dir):
     sections = []
     last_section_number = None
     current_section = None
 
-    sa = SegmentAnalyzer(analysis_config)
+    sega = SegmentAnalyzer(analysis_config, section_text_dir)
 
     for page_data in filtered_data:
         page_number = page_data["page_number"]
         print(f"Analyzing page {page_number}")
 
         for block in page_data["blocks"]:
+            block_text = "".join(item["text"] for item in block["text_segments"]).strip()
+            if debug := (page_number > 305 and page_number < 310):
+                print(f"Analyzing {block_text}")
+
+            sega.analyze_segment(block_text, page_number, debug=debug)
             for segment in block["text_segments"]:
                 text = segment["text"].strip()
 
-                sa.analyze_segment(text)
                 section_match = section_heading_pattern.match(text)
-                annex_match = (annex_pattern and annex_pattern.match(text)) or None
 
                 if section_match:
                     if not is_valid_next_section_number(last_section_number, '.', section_match.group('number')):
@@ -210,15 +213,7 @@ def analyze_pdf(filtered_data, analysis_config, section_parsing_config, section_
                             current_section[group] = section_match.group(group)
                     # since we found the line that has the title, there will not be text yet
                     # so start the section with empty text
-                
-                elif annex_match:
-                    annex_id = is_annex_start()
-                    # start a new section
-                    current_section = {
-                        "start_page": page_number,
-                        "body_text":  "",
-                        "annex_id" : annex_id,
-                    }
+
                 elif current_section:
                     # no new section number, so append this text to the previous section
                     current_section["body_text"] += text + "\n"
@@ -227,7 +222,6 @@ def analyze_pdf(filtered_data, analysis_config, section_parsing_config, section_
                 else:
                     print(f"Text without section: {text}")
 
-
                 sections.append(current_section)
 
-    return sections
+    return sections, sega.get_section_list()

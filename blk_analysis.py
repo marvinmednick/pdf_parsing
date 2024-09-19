@@ -149,13 +149,21 @@ def main():
     toc_file_path = os.path.join(output_dir_path, "table_of_contents.json")
     _ = process_toc(toc_data, toc_file_path, toc_parsing_config, toc_regex_pattern)
 
+    section_text_dir = os.path.join(output_dir_path, "section_text")
+    os.makedirs(section_text_dir, exist_ok=True)
+
     analysis_config = global_config.get('analysis_config', {})
-    sections = analyze_pdf(filtered_pages_data, analysis_config, section_parsing_config, section_regex_pattern)
+    sections, sections2 = analyze_pdf(filtered_pages_data, analysis_config, section_parsing_config, section_regex_pattern, section_text_dir)
 
     if not args.nofiles:
         sections_output_file = os.path.join(output_dir_path, f"{os.path.basename(args.input_file)[:-4]}_sections.json")
         with open(sections_output_file, 'w', encoding='utf-8') as f:
             json.dump(sections, f, ensure_ascii=False, indent=4)
+
+        sections2_output_file = os.path.join(output_dir_path, f"{os.path.basename(args.input_file)[:-4]}_sections2.json")
+        with open(sections2_output_file, 'w', encoding='utf-8') as f:
+            json.dump(sections2, f, ensure_ascii=False, indent=4)
+
 
 
 if __name__ == "__main__":
