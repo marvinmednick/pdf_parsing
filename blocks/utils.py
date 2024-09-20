@@ -1,3 +1,6 @@
+import pymupdf
+
+
 def normalize_bbox(bbox):
     if isinstance(bbox, tuple):
         # Unpack the tuple values
@@ -20,6 +23,10 @@ def rect_to_dict(rect):
         return {"x0": rect.x0, "top": rect.y0, "x1": rect.x1, "bottom": rect.y1}
     else:
         raise ValueError("Unexpected rect format")
+
+
+def dict_to_rect(bbox):
+    return pymupdf.Rect(bbox['x0'], bbox['top'], bbox['x1'], bbox['bottom'])
 
 
 def parse_page_ranges(page_ranges, total_pages, default_range=None):

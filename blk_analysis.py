@@ -14,7 +14,8 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Process PDF to outline blocks and extract text details')
     parser.add_argument('input_file', help='Input PDF file')
     parser.add_argument('-o', '--output_file', help='Output PDF file')
-    parser.add_argument('--outline_blocks', action='store_true', help='Outline blocks in the PDF')
+    parser.add_argument('-ob', '--outline_blocks', action='store_true', help='Outline blocks in the PDF')
+    parser.add_argument('-oit', '--outline_images_tables', action='store_true', help='Outline images and tables in the PDF')
     parser.add_argument('-ad', '--appdir', help='Application directory', default='pdf_blocks')
     parser.add_argument('-od', '--output_dir', help='Output directory')
     parser.add_argument('-hs', '--header_size', type=float, default=0.07, help='Header size as a percentage of the page height (e.g., 0.1 for 10%%)')
@@ -93,7 +94,7 @@ def main():
     output_dir_path = os.path.join(app_dir, output_dir)
     os.makedirs(output_dir_path, exist_ok=True)
 
-    output_file = args.output_file if args.output_file else os.path.join(output_dir_path, f"{os.path.basename(args.input_file)[:-4]}_blocks.pdf")
+    output_file = args.output_file if args.output_file else os.path.join(output_dir_path, f"{os.path.basename(args.input_file)[:-4]}_outline.pdf")
 
     if args.skip_preprocessing:
         filtered_data_file = args.filtered_data_file if args.filtered_data_file else os.path.join(output_dir_path, f"filtered_{os.path.basename(args.input_file)[:-4]}_blocks.json")
@@ -105,11 +106,16 @@ def main():
         with open(toc_data_file, 'r', encoding='utf-8') as f:
             toc_data = json.load(f)
     else:
-        doc = pymupdf.open(args.input_file)
+
+        files = {
+            'input': args.input_file,
+            'output': output_file
+        }
 
         pages_data, filtered_pages_data, toc_data, images, tables, location_info = preprocess_pdf(
-            doc, args.input_file, output_file, args.outline_blocks, app_dir, output_dir_path,
-            args.header_size, args.footer_size, args.main_pages, args.exclude_pages, args.toc_pages
+            files, args.outline_blocks, output_dir_path,
+            args.header_size, args.footer_size, args.main_pages, args.exclude_pages, args.toc_pages,
+            args.outline_images_tables
         )
 
         if not args.nofiles:
