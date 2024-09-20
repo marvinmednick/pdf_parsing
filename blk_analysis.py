@@ -109,19 +109,32 @@ def main():
 
         files = {
             'input': args.input_file,
-            'output': output_file
+            'output': output_file,
+            'output_dir': output_dir_path,
+        
         }
 
-        pages_data, filtered_pages_data, toc_data, images, tables, location_info = preprocess_pdf(
-            files, args.outline_blocks, output_dir_path,
-            args.header_size, args.footer_size, args.main_pages, args.exclude_pages, args.toc_pages,
-            args.outline_images_tables
-        )
+        config = {
+            'outline_blocks': args.outline_blocks,
+            'outline_images': args.outline_images_tables,
+            'outline_tables': args.outline_images_tables,
+            'output_dir_path': output_dir_path,
+            'header_size': args.header_size,
+            'footer_size': args.footer_size,
+            'include_pages': args.main_pages,
+            'exclude_pages': args.exclude_pages,
+            'toc_pages':  args.toc_pages,
+        }
+
+        # pages_data, filtered_pages_data, toc_data, images, tables, location_info = preprocess_pdf(files, config)
+        result = preprocess_pdf(files, config)
+        filtered_pages_data = result['filtered_pages_data']
+        toc_data = result['toc_data']
 
         if not args.nofiles:
             json_output_file = os.path.join(output_dir_path, f"{os.path.basename(args.input_file)[:-4]}_blocks.json")
             with open(json_output_file, 'w', encoding='utf-8') as f:
-                json.dump(pages_data, f, ensure_ascii=False, indent=4)
+                json.dump(result['pages_data'], f, ensure_ascii=False, indent=4)
 
             filtered_json_output_file = os.path.join(output_dir_path, f"filtered_{os.path.basename(args.input_file)[:-4]}_blocks.json")
             with open(filtered_json_output_file, 'w', encoding='utf-8') as f:
@@ -132,13 +145,13 @@ def main():
                 json.dump(toc_data, f, ensure_ascii=False, indent=4)
 
             with open(os.path.join(output_dir_path, "images.json"), "w", encoding="utf-8") as f:
-                json.dump(images, f, ensure_ascii=False, indent=4)
+                json.dump(result['images'], f, ensure_ascii=False, indent=4)
 
             with open(os.path.join(output_dir_path, "tables.json"), "w", encoding="utf-8") as f:
-                json.dump(tables, f, ensure_ascii=False, indent=4)
+                json.dump(result['tables'], f, ensure_ascii=False, indent=4)
 
             with open(os.path.join(output_dir_path, "locations.json"), "w", encoding="utf-8") as f:
-                json.dump(location_info, f, ensure_ascii=False, indent=4)
+                json.dump(result['location_info'], f, ensure_ascii=False, indent=4)
 
     toc_regex_string = build_regex(toc_parsing_config)
     # print("TOC Regex: ", toc_regex_string)

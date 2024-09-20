@@ -7,8 +7,7 @@ import pymupdf
 from pymupdf.utils import getColor  
 
 
-def preprocess_pdf(files, outline_blocks, output_dir, header_size, footer_size, main_pages, exclude_pages, toc_pages,
-                   outline_images_tables=False):
+def preprocess_pdf(files, config):
     """
     Process PDF to outline blocks and extract text details
     """
@@ -23,9 +22,9 @@ def preprocess_pdf(files, outline_blocks, output_dir, header_size, footer_size, 
 
     mu_doc = pymupdf.open(files['input'])
     total_pages = len(mu_doc)
-    main_page_numbers = parse_page_ranges(main_pages, total_pages)
-    exclude_page_numbers = parse_page_ranges(exclude_pages, total_pages, default_range=[])
-    toc_page_numbers = parse_page_ranges(toc_pages, total_pages, default_range=[])
+    main_page_numbers = parse_page_ranges(config['include_pages'], total_pages)
+    exclude_page_numbers = parse_page_ranges(config['exclude_pages'], total_pages, default_range=[])
+    toc_page_numbers = parse_page_ranges(config['toc_pages'], total_pages, default_range=[])
 
     with tqdm(total=total_pages, desc="Processing Pages", unit="page") as pbar:
         for page_num, page in enumerate(mu_doc, start=1):
@@ -33,25 +32,26 @@ def preprocess_pdf(files, outline_blocks, output_dir, header_size, footer_size, 
                 continue
 
             page_images, page_tables, page_locations, doc_image_index, doc_table_index = extract_images_and_tables(
-                mu_doc, page, page_num, output_dir, doc_image_index, doc_table_index)
+                mu_doc, page, page_num, files['output_dir'], doc_image_index, doc_table_index)
 
             images.extend(page_images)
             tables.extend(page_tables)
             location_info.append(page_locations)
 
-            if outline_images_tables:
+            if config['outline_images']:
                 for img in page_locations['images']:
                     rect = dict_to_rect(img["bbox"])
                     page.draw_rect(rect, color=getColor('orange'), width=2)
 
+            if config['outline_tables']:
                 for tbl in page_locations['tables']:
                     rect = dict_to_rect(img["bbox"])
                     page.draw_rect(rect, color=getColor('green'), width=2)
 
             page_info = page.get_text("dict")
             blocks = page_info["blocks"]
-            header_limit = header_size * page_info['height']
-            footer_limit = (1 - footer_size) * page_info['height']
+            header_limit = config['header_size'] * page_info['height']
+            footer_limit = (1 - config['footer_size']) * page_info['height']
             page_data = {
                 "page_number": page_num,
                 "blocks": [],
@@ -82,7 +82,7 @@ def preprocess_pdf(files, outline_blocks, output_dir, header_size, footer_size, 
                 else:
                     page_data["filtered_blocks"].append(block_data)
 
-                if outline_blocks:
+                if config['outline_blocks']:
                     rect = pymupdf.Rect(block["bbox"])
                     page.draw_rect(rect, color=(1, 0, 0), width=2)
 
@@ -106,10 +106,18 @@ def preprocess_pdf(files, outline_blocks, output_dir, header_size, footer_size, 
 
             pbar.update(1)
 
-    if outline_blocks or outline_images_tables:
+    if config['outline_blocks'] or config['outline_images'] or config['outline_tables']:
         mu_doc.save(files['output'])
 
-    return pages_data, filtered_pages_data, toc_data, images, tables, location_info
+    result = {
+            'pages_data': pages_data, 
+            'filtered_pages_data': filtered_pages_data, 
+            'toc_data': toc_data, 
+            'images': images, 
+            'tables': tables,
+            'location_info': location_info
+    }
+    return result
 
 
 def increment_numeric(value):
