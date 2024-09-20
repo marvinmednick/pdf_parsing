@@ -18,6 +18,7 @@ def preprocess_pdf(files, config):
     doc_table_index = 0
     pages_data = []
     filtered_pages_data = []
+    excluded_pages_data = []
     toc_data = []
 
     mu_doc = pymupdf.open(files['input'])
@@ -52,11 +53,11 @@ def preprocess_pdf(files, config):
             blocks = page_info["blocks"]
             header_limit = config['header_size'] * page_info['height']
             footer_limit = (1 - config['footer_size']) * page_info['height']
+            page_included = []
+            page_excluded = []
             page_data = {
                 "page_number": page_num,
                 "blocks": [],
-                'filtered_blocks': [],
-                'excluded_blocks': [],
                 'height': page_info['height'],
                 'width': page_info['width'],
                 'header_limit': header_limit,
@@ -70,10 +71,10 @@ def preprocess_pdf(files, config):
                 exclusion_reason, is_excluded = check_exclusions(block_data, page_locations, header_limit, footer_limit)
                 if is_excluded:
                     block_data['exclusion'] = exclusion_reason
-                    page_data["excluded_blocks"].append(block_data)
+                    page_excluded.append(block_data)
 
                 else:
-                    page_data["filtered_blocks"].append(block_data)
+                    page_included.append(block_data)
 
                 if config['outline_blocks']:
                     rect = pymupdf.Rect(block["bbox"])
@@ -81,10 +82,17 @@ def preprocess_pdf(files, config):
 
             pages_data.append(page_data)
 
+            # ingore data from excluded pages
             if page_num not in exclude_page_numbers and page_num not in toc_page_numbers:
                 filtered_pages_data.append({
                     "page_number": page_num,
-                    "blocks": page_data["filtered_blocks"],
+                    "blocks": page_included,
+                    'height': page_info['height'],
+                    'width': page_info['width'],
+                })
+                excluded_pages_data.append({
+                    "page_number": page_num,
+                    "blocks": page_excluded,
                     'height': page_info['height'],
                     'width': page_info['width'],
                 })
@@ -92,7 +100,7 @@ def preprocess_pdf(files, config):
             if page_num in toc_page_numbers:
                 toc_data.append({
                     "page_number": page_num,
-                    "blocks": page_data["filtered_blocks"],
+                    "blocks": page_included,
                     'height': page_info['height'],
                     'width': page_info['width'],
                 })
@@ -105,6 +113,7 @@ def preprocess_pdf(files, config):
     result = {
             'pages_data': pages_data, 
             'filtered_pages_data': filtered_pages_data, 
+            'excluded_pages_data': excluded_pages_data,
             'toc_data': toc_data, 
             'images': images, 
             'tables': tables,

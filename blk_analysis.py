@@ -140,6 +140,10 @@ def main():
             with open(filtered_json_output_file, 'w', encoding='utf-8') as f:
                 json.dump(filtered_pages_data, f, ensure_ascii=False, indent=4)
 
+            excluded_json_output_file = os.path.join(output_dir_path, f"excluded_{os.path.basename(args.input_file)[:-4]}_blocks.json")
+            with open(excluded_json_output_file, 'w', encoding='utf-8') as f:
+                json.dump(result['excluded_pages_data'], f, ensure_ascii=False, indent=4)
+
             toc_json_output_file = os.path.join(output_dir_path, f"toc_{os.path.basename(args.input_file)[:-4]}_blocks.json")
             with open(toc_json_output_file, 'w', encoding='utf-8') as f:
                 json.dump(toc_data, f, ensure_ascii=False, indent=4)
