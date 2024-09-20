@@ -57,8 +57,6 @@ def preprocess_pdf(files, config):
                 "blocks": [],
                 'filtered_blocks': [],
                 'excluded_blocks': [],
-                'headers': [],
-                'footers': [],
                 'height': page_info['height'],
                 'width': page_info['width'],
                 'header_limit': header_limit,
@@ -72,13 +70,8 @@ def preprocess_pdf(files, config):
                 exclusion_reason, is_excluded = check_exclusions(block_data, page_locations, header_limit, footer_limit)
                 if is_excluded:
                     block_data['exclusion'] = exclusion_reason
+                    page_data["excluded_blocks"].append(block_data)
 
-                    if exclusion_reason['type'] == "header":
-                        page_data["headers"].append(block_data)
-                    elif exclusion_reason['type'] == "footer":
-                        page_data["footers"].append(block_data)
-                    else:
-                        page_data["excluded_blocks"].append(block_data)
                 else:
                     page_data["filtered_blocks"].append(block_data)
 
