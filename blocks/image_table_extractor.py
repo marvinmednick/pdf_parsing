@@ -1,11 +1,13 @@
 import os
 from blocks.utils import rect_to_dict
+from pymupdf.utils import getColor
 
 
 def extract_images_and_tables(doc, page, page_num, output_dir, doc_image_index, doc_table_index):
     images = []
     tables = []
     page_locations = {"page": page_num, "images": [], "tables": []}
+    return images, tables, page_locations, doc_image_index, doc_table_index
 
     # Extract images
     image_list = page.get_images(full=True)
@@ -48,4 +50,3 @@ def extract_images_and_tables(doc, page, page_num, output_dir, doc_image_index, 
         page_locations["tables"].append(location_record)
 
     return images, tables, page_locations, doc_image_index, doc_table_index
-

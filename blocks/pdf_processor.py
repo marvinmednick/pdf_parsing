@@ -5,6 +5,8 @@ from blocks.utils import parse_page_ranges, dict_to_rect
 from blocks.segments import SegmentAnalyzer
 import pymupdf
 from pymupdf.utils import getColor  
+from blocks.table_extractor import extract_tables
+from blocks.image_extractor import extract_images
 
 
 def preprocess_pdf(files, config):
@@ -22,6 +24,17 @@ def preprocess_pdf(files, config):
     toc_data = []
 
     mu_doc = pymupdf.open(files['input'])
+
+    tables1, table_locations = extract_tables(mu_doc, files['output_dir'])
+    images1, image_locations = extract_images(mu_doc, files['output_dir'])
+
+    locations = table_locations.copy()
+    for page_num, data in image_locations.items():
+        if page_num in locations:
+            locations[page_num].update(data)
+        else:
+            locations[page_num] = data
+
     total_pages = len(mu_doc)
     main_page_numbers = parse_page_ranges(config['include_pages'], total_pages)
     exclude_page_numbers = parse_page_ranges(config['exclude_pages'], total_pages, default_range=[])
@@ -46,7 +59,7 @@ def preprocess_pdf(files, config):
 
             if config['outline_tables']:
                 for tbl in page_locations['tables']:
-                    rect = dict_to_rect(img["bbox"])
+                    rect = dict_to_rect(tbl["bbox"])
                     page.draw_rect(rect, color=getColor('green'), width=2)
 
             page_info = page.get_text("dict")
@@ -117,7 +130,8 @@ def preprocess_pdf(files, config):
             'toc_data': toc_data, 
             'images': images, 
             'tables': tables,
-            'location_info': location_info
+            'location_info': location_info,
+            'new_location': locations,
     }
     return result
 

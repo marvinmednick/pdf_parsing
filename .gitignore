@@ -30,6 +30,9 @@ analyze_pdf_output/
 old/
 pdf_extract/
 data/
+pdf_blocks/
+old_app/pdf_analyze/
+
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
