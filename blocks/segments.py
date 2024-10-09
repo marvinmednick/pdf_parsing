@@ -167,7 +167,7 @@ class SegmentAnalyzer():
             prev_section_parts[-1] = increment_func(prev_section_parts[-1])
             next_valid_section = separator.join(prev_section_parts)
 
-            if next_section== next_valid_section:
+            if next_section == next_valid_section:
                 # print(f"SA: Valid {next_valid_section}")
                 return True
 
@@ -196,18 +196,19 @@ class SegmentAnalyzer():
                 print(f"ANALYZE SEG: Checking {text} with rule {div_search_config}")
 
             if div_match:
+                print("Div Text: ", text)
                 self.set_division(dtype)
                 number_field = dtype_config.get('number_match', None)
                 prefix_field = dtype_config.get('prefix_match', None)
                 if number_field is not None:
                     self.section_number = div_match.group(number_field)
-                    print(f"New Div: Setting number to  {self.section_number}")
+                    # print(f"New Div: Setting number to  {self.section_number}")
                 else:
                     self.section_number = None
 
                 if prefix_field is not None:
                     self.section_prefix = div_match.group(prefix_field)
-                    print(f"New Div: Setting prefix to  {self.section_prefix}")
+                    # print(f"New Div: Setting prefix to  {self.section_prefix}")
                 else:
                     self.section_prefix = None
 
@@ -237,6 +238,10 @@ class SegmentAnalyzer():
                         with open(section_text_file, "w") as output:
                             output.write(self.section_text)
 
+                        self.section_record['section_text'] = self.section_record['title'] + '\n' + self.section_text
+                        self.section_record['section_id'] = self.section_record['number']
+                        self.section_record['section_title'] = self.section_record['number'] + " " + self.section_record['title']
+                        self.section_record['section_title_text'] = self.section_record['title']
                         self.section_list.append(self.section_record)
                         # pprint(self.section_record)
 

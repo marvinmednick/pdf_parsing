@@ -25,15 +25,15 @@ def preprocess_pdf(files, config):
 
     mu_doc = pymupdf.open(files['input'])
 
-    tables1, table_locations = extract_tables(mu_doc, files['output_dir'])
-    images1, image_locations = extract_images(mu_doc, files['output_dir'])
-
-    locations = table_locations.copy()
-    for page_num, data in image_locations.items():
-        if page_num in locations:
-            locations[page_num].update(data)
-        else:
-            locations[page_num] = data
+    # tables1, table_locations = extract_tables(mu_doc, files['output_dir'])
+    # images1, image_locations = extract_images(mu_doc, files['output_dir'])
+#
+#    locations = table_locations.copy()
+#    for page_num, data in image_locations.items():
+#        if page_num in locations:
+#            locations[page_num].update(data)
+#        else:
+#            locations[page_num] = data
 
     total_pages = len(mu_doc)
     main_page_numbers = parse_page_ranges(config['include_pages'], total_pages)
@@ -131,7 +131,7 @@ def preprocess_pdf(files, config):
             'images': images, 
             'tables': tables,
             'location_info': location_info,
-            'new_location': locations,
+            # 'new_location': locations,
     }
     return result
 
@@ -208,16 +208,19 @@ def analyze_pdf(filtered_data, analysis_config, section_text_dir):
 
     sega = SegmentAnalyzer(analysis_config, section_text_dir)
 
-    for page_data in filtered_data:
-        page_number = page_data["page_number"]
-        # print(f"Analyzing page {page_number}")
+    total_pages = len(filtered_data)
+    with tqdm(total=total_pages, desc="Analyzing Pages", unit="page") as pbar:
+        for page_data in filtered_data:
+            page_number = page_data["page_number"]
 
-        for block in page_data["blocks"]:
-            block_text = "".join(item["text"] for item in block["text_segments"]).strip()
-            debug = False
-            # if debug := (page_number > 305 and page_number < 310):
-            #     print(f"Analyzing {block_text}")
+            for block in page_data["blocks"]:
+                block_text = "".join(item["text"] for item in block["text_segments"]).strip()
+                debug = False
+                # debug := (page_number > 80 and page_number < 95):
+                if debug:
+                    print(f"Analyzing {block_text}")
 
-            sega.analyze_segment(block_text, page_number, debug=debug)
+                sega.analyze_segment(block_text, page_number, debug=debug)
+            pbar.update(1)
 
     return sega.get_section_list()
