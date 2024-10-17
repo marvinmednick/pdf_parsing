@@ -35,11 +35,11 @@ analysis_config:
       division_search_rules: [main] 
 
     main:
-      numbering_rules: numeric
+      numbering_rules: [numeric, numeric]
       division_search_rules: [annex] 
 
     annex:
-      numbering_rules: annex
+      numbering_rules: [annex, annex]
       division_search_rules: [annex] 
 
 
@@ -58,12 +58,14 @@ analysis_config:
   numbering_rules:
     numeric:
       parsing_rules: numeric
+      separator: "."
       sequence_rules:
         initial_section_number: ["1", "1.0", "0", "0.0", "0.1"]
         level_starts: [0, 1]
         increment:  numeric
     annex:
       parsing_rules: annex_numeric
+      separator: "."
       sequence_rules: 
         # annexes will have their initial value set by the division parsing
         initial_section_number: ["","1","0"]

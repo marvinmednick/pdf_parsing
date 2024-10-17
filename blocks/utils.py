@@ -1,6 +1,16 @@
 import pymupdf
 
 
+# Updated function to ensure an item is a list
+def ensure_list(item):
+    if item is None:
+        return []
+    elif isinstance(item, list):
+        return item
+    else:
+        return [item]
+
+
 def normalize_bbox(bbox):
     if isinstance(bbox, tuple):
         # Unpack the tuple values

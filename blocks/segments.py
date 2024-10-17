@@ -1,6 +1,7 @@
 import re
 import os
 from functools import partial
+from blocks.utils import ensure_list
 
 # section_number = None
 # section_text = ""
@@ -106,7 +107,7 @@ class SegmentAnalyzer():
     def get_section_list(self):
         return self.section_list
 
-    def is_valid_next_section_number(self, separator, next_section=None):
+    def is_valid_next_section_number(self, numbering_rule, next_section=None):
 
         # TODO -- don't add separator if ""
         def add_prefix(s, separator):
@@ -120,9 +121,9 @@ class SegmentAnalyzer():
             else:
                 return self.section_prefix
 
-        numbering_model_name = self.division_config['numbering_rules']
-        numbering_model = self.config['numbering_rules'][numbering_model_name]['sequence_rules']
-#        print("Numbering Model:")
+        numbering_model = numbering_rule['sequence_rules']
+        separator = numbering_rule['separator']
+        print("Numbering Model:")
 #        pprint(numbering_model)
 
         # if no previous section, the first section must be one of the
@@ -149,7 +150,7 @@ class SegmentAnalyzer():
             next_valid_section = separator.join(prev_section_parts)
 
             if next_section == next_valid_section:
-                # print(f"SA: Valid {next_valid_section} {next_section}")
+                print(f"SA: Valid {next_valid_section} {next_section}")
                 return True
 
         # prev_section_parts will have one (and only one) additional sublevel from above
@@ -168,7 +169,7 @@ class SegmentAnalyzer():
             next_valid_section = separator.join(prev_section_parts)
 
             if next_section == next_valid_section:
-                # print(f"SA: Valid {next_valid_section}")
+                print(f"SA: Valid {next_valid_section}")
                 return True
 
             # for the first level, also allow X.<level start options>
@@ -182,8 +183,31 @@ class SegmentAnalyzer():
 
         return False
 
+    def finish_section_record(self):
+        ''' If there is a section record in process, finish it out and add it to the list
+        '''
+
+        if self.section_record:
+            section_text_file = os.path.join(self.text_dir, self.section_record['textfile'])
+            with open(section_text_file, "w") as output:
+                output.write(self.section_text)
+
+            self.section_record['section_text'] = self.section_record['title'] + '\n' + self.section_text
+            self.section_record['section_id'] = self.section_record['number']
+            self.section_record['section_title'] = self.section_record['number'] + " " + self.section_record['title']
+            self.section_record['section_title_text'] = self.section_record['title']
+            self.section_list.append(self.section_record)
+            # pprint(self.section_record)
+
     def analyze_segment(self, text, page_number, debug=False):
-        # check for start of new divisions
+        ''' Anylyzes each segement and updates the class data structure to
+            identify sections of text with
+        '''
+
+        # First check the sgement for start of new divisions, base on 
+        # the rules setup in the current division type (may be one or more valid
+        # division rules for the current division)
+        
         for dtype in self.division_config['division_search_rules']:
             dtype_config = self.config['division_search_rules'][dtype]
             div_search_config = dtype_config['regex']
@@ -197,58 +221,68 @@ class SegmentAnalyzer():
 
             if div_match:
                 print("Div Text: ", text)
+
+                # update the division type and setup revised rules going forward
                 self.set_division(dtype)
+                # search for number and preix
                 number_field = dtype_config.get('number_match', None)
                 prefix_field = dtype_config.get('prefix_match', None)
+
                 if number_field is not None:
                     self.section_number = div_match.group(number_field)
-                    # print(f"New Div: Setting number to  {self.section_number}")
+                    print(f"New Div: Setting number to  {self.section_number}")
                 else:
+                    print("New Div: Setting number to  None")
                     self.section_number = None
 
                 if prefix_field is not None:
                     self.section_prefix = div_match.group(prefix_field)
-                    # print(f"New Div: Setting prefix to  {self.section_prefix}")
+                    print(f"New Div: Setting prefix to  {self.section_prefix}")
                 else:
                     self.section_prefix = None
 
                 print(f"Segment Analyzer:  Found div type {dtype} number: {self.section_number or 'NA'} pref: {self.section_prefix or 'NA'} (text: {text}")
                 # TODO -- close previous section
                 self.section_text = ""
-                return
+                # return
 
-        numb_rule_name = self.division_config['numbering_rules']
-        if numb_rule_name is not None:
-            numbering = self.config['numbering_rules'][numb_rule_name]
+        # continue processing the section
+
+        # check each numbering rule for a valid next section start
+        for numb_rule_name in ensure_list(self.division_config['numbering_rules']):
+            numbering_rule = self.config['numbering_rules'][numb_rule_name]
             parsing_config = self.config['parsing_rules']['common']
-            parsing_rule_name = numbering['parsing_rules']
+            parsing_rule_name = numbering_rule['parsing_rules']
             parsing_config = parsing_config | self.config['parsing_rules'][parsing_rule_name]
             numbering_regex_string = build_regex(parsing_config)
             numbering_regex_pattern = re.compile(numbering_regex_string)
             numbering_match = numbering_regex_pattern.match(text)
+            # print(f"Matching {text}", numbering_regex_string, numbering_match)
             if numbering_match:
+                # found a match
                 next_section_number = numbering_match.group('number')
-                separator = "."  # TODO configure this
-                # print(f"Checking {next_section_number} {text}")
-                if self.is_valid_next_section_number(separator, next_section_number):
-                    # TODO -- close previous section
-                    # print(f"SA - Valid New Section {next_section_number}")
-                    if self.section_record:
-                        section_text_file = os.path.join(self.text_dir, self.section_record['textfile'])
-                        with open(section_text_file, "w") as output:
-                            output.write(self.section_text)
+                print(f"Checking {next_section_number} {text}")
+                if self.is_valid_next_section_number(numbering_rule, next_section_number):
+                    print(f"SA - Valid New Section {next_section_number}")
+                    # Close off the previous section record and append it (if there is one)
+                    self.finish_section_record()
 
-                        self.section_record['section_text'] = self.section_record['title'] + '\n' + self.section_text
-                        self.section_record['section_id'] = self.section_record['number']
-                        self.section_record['section_title'] = self.section_record['number'] + " " + self.section_record['title']
-                        self.section_record['section_title_text'] = self.section_record['title']
-                        self.section_list.append(self.section_record)
-                        # pprint(self.section_record)
-
+#                     if self.section_record:
+#                         section_text_file = os.path.join(self.text_dir, self.section_record['textfile'])
+#                         with open(section_text_file, "w") as output:
+#                             output.write(self.section_text)
+#
+#                         self.section_record['section_text'] = self.section_record['title'] + '\n' + self.section_text
+#                         self.section_record['section_id'] = self.section_record['number']
+#                         self.section_record['section_title'] = self.section_record['number'] + " " + self.section_record['title']
+#                         self.section_record['section_title_text'] = self.section_record['title']
+#                         self.section_list.append(self.section_record)
+#                         # pprint(self.section_record)
+#
                     self.section_number = next_section_number
                     self.section_text = ""
                     # since we found the line that has the title, there will not be text yet
-                    # so start the section with empty text
+                    # so start the section record with empty text
                     self.section_record = {
                         "id":  self.section_id,
                         "start_page": page_number,
@@ -256,12 +290,19 @@ class SegmentAnalyzer():
                     }
                     self.section_id += 1
 
-                    # add in all the sections from the regex groups matches
+                    # the regex will contain all of the groups listed in the regex_groups
+                    # and the following will caputure the matching text for each group in 
+                    # the section_record
                     for group in parsing_config['regex_groups']:
                         if isinstance(parsing_config[group], dict):
                             self.section_record[group] = numbering_match.group(group)
                         else:
                             self.section_record[group] = numbering_match.group(group)
+                    # print("Section Record")
+                    # pprint(self.section_record)
+                    # since a new section number was found, terminate the searcha and return
                     return
 
-            self.section_text += text + "\n"
+        # did not find a new section (above code did not return)
+        # so add the text to the current section text
+        self.section_text += text + "\n"
