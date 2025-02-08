@@ -88,6 +88,7 @@ class SegmentAnalyzer():
         self.text_dir = text_dir
         self.config = config
         self.section_number = None
+        self.section_title  = ""
         self.section_prefix = None
         self.section_text = ""
         self.set_division(division_type)
@@ -123,7 +124,7 @@ class SegmentAnalyzer():
 
         numbering_model = numbering_rule['sequence_rules']
         separator = numbering_rule['separator']
-        print("Numbering Model:")
+        # print("Numbering Model:")
 #        pprint(numbering_model)
 
         # if no previous section, the first section must be one of the
@@ -192,17 +193,35 @@ class SegmentAnalyzer():
             with open(section_text_file, "w") as output:
                 output.write(self.section_text)
 
-            self.section_record['section_text'] = self.section_record['title'] + '\n' + self.section_text
-            self.section_record['section_id'] = self.section_record['number']
-            self.section_record['section_title'] = self.section_record['number'] + " " + self.section_record['title']
-            self.section_record['section_title_text'] = self.section_record['title']
+            # Fill out the details of the record
+
+            self.section_record['section_id'] = self.section_number
+            self.section_record['section_title_text'] = self.section_title
+            title_with_number = self.section_number + " " + self.section_title
+            # form the title with the section number
+            self.section_record['section_title'] = title_with_number
+            # Add the title at the beginng of the text
+            self.section_record['section_text'] = title_with_number + '\n' + self.section_text
+
+            #  And add the record to the list
             self.section_list.append(self.section_record)
+
+            self.section_record = None
+            self.section_number = None
+            self.section_title = ""
+            self.section_text = ""
             # pprint(self.section_record)
 
     def analyze_segment(self, text, page_number, debug=False):
         ''' Anylyzes each segement and updates the class data structure to
             identify sections of text with
         '''
+
+        # print(f"Processing block with ({text})")
+        # ignore any 
+        if text.strip() == "":
+            # print("Skipping blank segment")
+            return
 
         # First check the sgement for start of new divisions, base on 
         # the rules setup in the current division type (may be one or more valid
@@ -221,10 +240,11 @@ class SegmentAnalyzer():
 
             if div_match:
                 print("Div Text: ", text)
+                self.finish_section_record()
 
                 # update the division type and setup revised rules going forward
                 self.set_division(dtype)
-                # search for number and preix
+                # search for number and prefix
                 number_field = dtype_config.get('number_match', None)
                 prefix_field = dtype_config.get('prefix_match', None)
 
@@ -242,8 +262,6 @@ class SegmentAnalyzer():
                     self.section_prefix = None
 
                 print(f"Segment Analyzer:  Found div type {dtype} number: {self.section_number or 'NA'} pref: {self.section_prefix or 'NA'} (text: {text}")
-                # TODO -- close previous section
-                self.section_text = ""
                 # return
 
         # continue processing the section
@@ -251,58 +269,54 @@ class SegmentAnalyzer():
         # check each numbering rule for a valid next section start
         for numb_rule_name in ensure_list(self.division_config['numbering_rules']):
             numbering_rule = self.config['numbering_rules'][numb_rule_name]
-            parsing_config = self.config['parsing_rules']['common']
-            parsing_rule_name = numbering_rule['parsing_rules']
-            parsing_config = parsing_config | self.config['parsing_rules'][parsing_rule_name]
-            numbering_regex_string = build_regex(parsing_config)
-            numbering_regex_pattern = re.compile(numbering_regex_string)
-            numbering_match = numbering_regex_pattern.match(text)
-            # print(f"Matching {text}", numbering_regex_string, numbering_match)
-            if numbering_match:
-                # found a match
-                next_section_number = numbering_match.group('number')
-                print(f"Checking {next_section_number} {text}")
-                if self.is_valid_next_section_number(numbering_rule, next_section_number):
-                    print(f"SA - Valid New Section {next_section_number}")
-                    # Close off the previous section record and append it (if there is one)
-                    self.finish_section_record()
+            for parsing_rule_name in ensure_list(numbering_rule['parsing_rules']):
+                parsing_config = self.config['parsing_rules']['common']
+                parsing_config = parsing_config | self.config['parsing_rules'][parsing_rule_name]
+                numbering_regex_string = build_regex(parsing_config)
+#                print(f"Checking {numbering_regex_string}")
+                numbering_regex_pattern = re.compile(numbering_regex_string)
+                numbering_match = numbering_regex_pattern.match(text)
+#                print(f"\nMatching {text}", numbering_regex_string, numbering_match)
+                if numbering_match:
+                    # found a match
 
-#                     if self.section_record:
-#                         section_text_file = os.path.join(self.text_dir, self.section_record['textfile'])
-#                         with open(section_text_file, "w") as output:
-#                             output.write(self.section_text)
-#
-#                         self.section_record['section_text'] = self.section_record['title'] + '\n' + self.section_text
-#                         self.section_record['section_id'] = self.section_record['number']
-#                         self.section_record['section_title'] = self.section_record['number'] + " " + self.section_record['title']
-#                         self.section_record['section_title_text'] = self.section_record['title']
-#                         self.section_list.append(self.section_record)
-#                         # pprint(self.section_record)
-#
-                    self.section_number = next_section_number
-                    self.section_text = ""
-                    # since we found the line that has the title, there will not be text yet
-                    # so start the section record with empty text
-                    self.section_record = {
-                        "id":  self.section_id,
-                        "start_page": page_number,
-                        "textfile":  f"section_{self.section_id}.txt"
-                    }
-                    self.section_id += 1
+#                    print(f"Value is {parsing_config['values']['id']}")
+                    next_section_number = numbering_match.group(parsing_config['values']['id'])
+                    next_section_title = numbering_match.group(parsing_config['values']['title'])
+#                    print(f"Checking {next_section_number} {text}")
+                    if self.is_valid_next_section_number(numbering_rule, next_section_number):
+                        # print(f"SA - Valid New Section {next_section_number}")
+                        # Close off the previous section record and append it (if there is one)
+                        self.finish_section_record()
 
-                    # the regex will contain all of the groups listed in the regex_groups
-                    # and the following will caputure the matching text for each group in 
-                    # the section_record
-                    for group in parsing_config['regex_groups']:
-                        if isinstance(parsing_config[group], dict):
-                            self.section_record[group] = numbering_match.group(group)
-                        else:
-                            self.section_record[group] = numbering_match.group(group)
-                    # print("Section Record")
-                    # pprint(self.section_record)
-                    # since a new section number was found, terminate the searcha and return
-                    return
+                        self.section_number = next_section_number
+                        self.section_title = next_section_title
+                        self.section_text = ""
+                        # since we found the line that has the title, there will not be text yet
+                        # so start the section record with empty text
+                        self.section_record = {
+                            "id":  self.section_id,
+                            "start_page": page_number,
+                            "textfile":  f"section_{self.section_id}.txt"
+                        }
+                        self.section_id += 1
+
+                        # the regex will contain all of the groups listed in the regex_groups
+                        # and the following will caputure the matching text for each group in 
+                        # the section_record
+                        for group in parsing_config['regex_groups']:
+                            if isinstance(parsing_config[group], dict):
+                                self.section_record[group] = numbering_match.group(group)
+                            else:
+                                self.section_record[group] = numbering_match.group(group)
+                        # print("Section Record")
+                        # pprint(self.section_record)
+                        # since a new section number was found, terminate the searcha and return
+                        return
 
         # did not find a new section (above code did not return)
         # so add the text to the current section text
+        # print(f"\nAdding ({text})")
+        if self.section_title == "":
+            self.section_title = text
         self.section_text += text + "\n"

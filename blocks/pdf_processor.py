@@ -216,7 +216,6 @@ def analyze_pdf(filtered_data, analysis_config, section_text_dir):
             for block in page_data["blocks"]:
                 block_text = "".join(item["text"] for item in block["text_segments"]).strip()
                 debug = False
-                # debug := (page_number > 80 and page_number < 95):
                 if debug:
                     print(f"Analyzing {block_text}")
 

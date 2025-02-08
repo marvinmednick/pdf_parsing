@@ -35,11 +35,11 @@ analysis_config:
       division_search_rules: [main] 
 
     main:
-      numbering_rules: [numeric, numeric]
+      numbering_rules: [numeric]
       division_search_rules: [annex] 
 
     annex:
-      numbering_rules: [annex, annex]
+      numbering_rules: [annex]
       division_search_rules: [annex] 
 
 
@@ -64,7 +64,7 @@ analysis_config:
         level_starts: [0, 1]
         increment:  numeric
     annex:
-      parsing_rules: annex_numeric
+      parsing_rules: [annex_numeric, annex_heading]
       separator: "."
       sequence_rules: 
         # annexes will have their initial value set by the division parsing
@@ -82,6 +82,9 @@ analysis_config:
 
     numeric:
       regex_groups: ['number', 'rqd_ws', 'title' ]
+      values:
+        id: 'number'
+        title: 'title'
       number:
         regex: "(?P<number>[0-9]{1,3}(?:[\\.\\-][0-9]{1,3}){0,5})"
         required: True
@@ -91,9 +94,30 @@ analysis_config:
 
     annex_numeric:
       regex_groups: ['number', 'rqd_ws', 'title' ]
+      values:
+        id: 'number'
+        title: 'title'
       number:
         regex: "(?P<number>[A-Z]{1,2}([\\.\\-][0-9]{1,3}){1,6})"
         required: True
       title:
         regex: "(?P<title>.*)"
         required: True
+
+    annex_heading:
+      regex_groups: ['annex','rqd_ws','letter','title']
+      values:
+        id: 'letter'
+        title: 'title'
+      annex:
+        regex: "(?P<annex>Annex)"
+        required: True
+      letter:
+        regex: "(?P<letter>[A-Z])"
+        rquired: True
+      title:
+        regex: "(?P<title>.*)"
+        required: False
+      
+
+

@@ -1,6 +1,17 @@
 from blocks.utils import normalize_bbox
+from pprint import pprint
 
+
+def print_hex(string):
+    for x in string:
+        print(f"{ord(x):04x}", end=" ")
+    print()
+
+
+block_cnt = 0
 def process_block_text(block):
+    global block_cnt
+
     block_data = {
         "block_number": block["number"],
         "type": block["type"],
@@ -19,8 +30,14 @@ def process_block_text(block):
                 font = span["font"]
                 text = span["text"]
                 line_num = span["origin"][1]
+                # check if entire segment is just blank space
+                # and if so just add it to the current text regardless
+                # of the font or size
                 if text.strip() == "":
                     current_text += text
+                # otherwize if the font and text size is the same, 
+                # add it to the current text
+                # (and adding newlines if the the next has moved to the next line)
                 elif font_size == current_font_size and font == current_font:
                     if prev_line_num is not None and line_num != prev_line_num:
                         current_text += "\n"
