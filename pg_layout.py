@@ -107,10 +107,19 @@ def analyze_vertical_layout(
 
 
 def display_vertical_layout_table(layout: List[Tuple[str, float, Set[str]]]) -> None:
+    # Adjusted constants for table formatting
+    TABLE_HEADER = "    ┌─────┬────────────┬────────────┬──────────────────────────────────────────┐"
+    TABLE_ROW_FORMAT = "    │ {item:3d} │ {unused:10.2f} │ {used:10.2f} │ {fonts:40} │"
+    TABLE_FOOTER = "    └─────┴────────────┴────────────┴──────────────────────────────────────────┘"
+
     print("  Vertical layout:")
     print(TABLE_HEADER)
-    print("    │ Item│    Unused  │     Used   │ Font Combinations          │")
-    print("    ├─────┼────────────┼────────────┼────────────────────────────┤")
+    print(
+        "    │ Item│    Unused  │     Used   │ Font Combinations                        │"
+    )
+    print(
+        "    ├─────┼────────────┼────────────┼──────────────────────────────────────────┤"
+    )
 
     combined_rows = []
     i = 0
@@ -136,10 +145,18 @@ def display_vertical_layout_table(layout: List[Tuple[str, float, Set[str]]]) -> 
     filtered_rows = [row for row in combined_rows if row[0] > 0 or row[1] > 0]
 
     for idx, (unused, used, fonts) in enumerate(filtered_rows, 1):
-        fonts_str = ", ".join(sorted(fonts)) if fonts else "-"
+        # Round font sizes to the nearest 0.5 pt
+        rounded_fonts = {
+            f"{font.split()[0]} {round(float(font.split()[1]) * 2) / 2:.1f}"
+            for font in fonts
+        }
+        fonts_str = ", ".join(sorted(rounded_fonts)) if rounded_fonts else "-"
         print(
             TABLE_ROW_FORMAT.format(
-                item=idx, unused=unused, used=used, fonts=fonts_str[:25]
+                item=idx,
+                unused=unused,
+                used=used,
+                fonts=fonts_str[:40],  # Truncate to fit column width
             )
         )
 
