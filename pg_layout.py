@@ -11,13 +11,17 @@ UNUSED_COLUMN_WIDTH = 12  # For "Unused" column
 USED_COLUMN_WIDTH = 12  # For "Used" column
 FONT_COLUMN_WIDTH = 40  # For "Font Combinations" column
 COLUMN_PADDING = 1  # Padding before and after each column
+COL_PAD = " " * COLUMN_PADDING
+LEFT_INDENT = " " * 4
 
 # Derived format strings for table components
-TABLE_HEADER = f"    ┌{'─' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┐"
-TABLE_ROW = f"    │ {{item:^{ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING}}} │ {{unused:^{UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING}.2f}} │ {{used:^{USED_COLUMN_WIDTH + 2 * COLUMN_PADDING}.2f}} │ {{font:<{FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}} │"
-TABLE_FOOTER = f"    └{'─' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┘"
-BLANK_ROW = f"    │ {' ' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)} │ {' ' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)} │ {' ' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)} │ {{font:<{FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}} │"
-HEADER_ROW = f"    │ {'Item':^{ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING}} │ {'Unused':^{UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING}} │ {'Used':^{USED_COLUMN_WIDTH + 2 * COLUMN_PADDING}} │ {'Font Combinations':<{FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING}} │"
+TABLE_HEADER = f"{LEFT_INDENT}┌{'─' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┐"
+HEADER_DIV = f"{LEFT_INDENT}├{'─' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┼{'─' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┼{'─' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┼{'─' * (FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┤"
+TABLE_ROW = f"{LEFT_INDENT}│{{item:^{ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING}}}│{{unused:^{UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING}.2f}}│{{used:^{USED_COLUMN_WIDTH + 2 * COLUMN_PADDING}.2f}}│{{font:<{FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}}│"
+TABLE_FOOTER = f"{LEFT_INDENT}└{'─' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┘"
+BLANK_ROW = f"{LEFT_INDENT}│{' ' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}│{' ' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}│{' ' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}│{{font:<{FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}}│"
+
+HEADER_ROW = f"{LEFT_INDENT}│{'Item':^{ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│{'Unused':^{UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│{'Used':^{USED_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│{'Font Combinations':<{FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│"
 
 
 class FontProcessor:
@@ -70,7 +74,7 @@ class FontProcessor:
     def format_font_entry(self, font_id: int, style: str, size: float) -> str:
         """Use passed style parameter instead of stored value"""
         details = self.font_details.get(font_id, {"name": "Unknown", "foundry": ""})
-        return f"Font {font_id} {style} {size:.1f}pt"  # Use parameter, not details
+        return f"f{font_id} - {details['name']:20} {style:10} {size:.1f}"  # Use parameter, not details
 
     def get_sorted_font_list(self):
         """Group by font_id and style from instances"""
@@ -192,9 +196,7 @@ def display_vertical_layout_table(
     print("  Vertical layout:")
     print(TABLE_HEADER)
     print(HEADER_ROW)
-    print(
-        f"    ├{'─' * ITEM_COLUMN_WIDTH}┼{'─' * UNUSED_COLUMN_WIDTH}┼{'─' * USED_COLUMN_WIDTH}┼{'─' * FONT_COLUMN_WIDTH}┤"
-    )
+    print(HEADER_DIV)
 
     combined_rows = []
     i = 0
@@ -383,30 +385,22 @@ def main():
     # Print combined font list
     print("\nFont Summary:")
     print(
-        "┌──────┬─────────────────────────────┬──────────────┬────────────────────────┐"
+        "┌──────┬─────────────────────────────┬──────────────┬──────────────────────────────────────────────┐"
     )
     print(
-        "│  ID  │ Font Name                   │ Style        │ Sizes Used (pt)        │"
+        "│  ID  │ Font Name                   │ Style        │ Sizes Used (pt)                              │"
     )
     print(
-        "├──────┼─────────────────────────────┼──────────────┼────────────────────────┤"
+        "├──────┼─────────────────────────────┼──────────────┼──────────────────────────────────────────────┤"
     )
 
     for font_id, name, style, sizes in font_processor.get_sorted_font_list():
-        print(f"│ {font_id:4} │ {name:27} │ {style:12} │ {sizes:22} │")
+        print(f"│ {font_id:4} │ {name:27} │ {style:12} │ {sizes:44} │")
 
     print(
-        "└──────┴─────────────────────────────┴──────────────┴────────────────────────┘"
+        "└──────┴─────────────────────────────┴──────────────┴──────────────────────────────────────────────┘"
     )
 
 
 if __name__ == "__main__":
     main()
-
-
-class FontProcessor:
-    def __init__(self):
-        self.font_registry = {}  # base_name -> font_id
-        self.font_details = {}  # font_id -> (name, foundry)
-        self.font_instances = set()  # (font_id, style, size)
-        self.next_font_id = 1
