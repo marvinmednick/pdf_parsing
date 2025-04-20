@@ -31,8 +31,8 @@ toc_parsing_configurations:
 analysis_config:
   division_types:
     default: 
-      numbering_rules: null
-      division_search_rules: [main] 
+      numbering_rules: ['numeric']
+      division_search_rules: null
 
     main:
       numbering_rules: [numeric]
@@ -45,7 +45,7 @@ analysis_config:
 
   division_search_rules:
     main:
-      regex: "Advanced video coding for generic audiovisual services"
+      regex: ".*"
         # number_match: null
         # prefix_match: null
 

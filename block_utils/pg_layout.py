@@ -3,25 +3,26 @@ import argparse
 import os
 from typing import List, Tuple, Dict, Any, Set
 from collections import defaultdict
+import csv
 
 
 # Column width constants
-ITEM_COLUMN_WIDTH = 5  # For "Item" column
-UNUSED_COLUMN_WIDTH = 12  # For "Unused" column
-USED_COLUMN_WIDTH = 12  # For "Used" column
-FONT_COLUMN_WIDTH = 40  # For "Font Combinations" column
-COLUMN_PADDING = 1  # Padding before and after each column
+ITEM_COLUMN_WIDTH = 5
+UNUSED_COLUMN_WIDTH = 12
+USED_COLUMN_WIDTH = 12
+FONT_COLUMN_WIDTH = 40  # Reduced from 40
+TEXT_COLUMN_WIDTH = 60  # New text column
+COLUMN_PADDING = 1
 COL_PAD = " " * COLUMN_PADDING
 LEFT_INDENT = " " * 4
 
-# Derived format strings for table components
-TABLE_HEADER = f"{LEFT_INDENT}┌{'─' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┐"
-HEADER_DIV = f"{LEFT_INDENT}├{'─' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┼{'─' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┼{'─' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┼{'─' * (FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┤"
-TABLE_ROW = f"{LEFT_INDENT}│{{item:^{ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING}}}│{{unused:^{UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING}.2f}}│{{used:^{USED_COLUMN_WIDTH + 2 * COLUMN_PADDING}.2f}}│{{font:<{FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}}│"
-TABLE_FOOTER = f"{LEFT_INDENT}└{'─' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┘"
-BLANK_ROW = f"{LEFT_INDENT}│{' ' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}│{' ' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}│{' ' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}│{{font:<{FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}}│"
-
-HEADER_ROW = f"{LEFT_INDENT}│{'Item':^{ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│{'Unused':^{UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│{'Used':^{USED_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│{'Font Combinations':<{FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│"
+# Table format strings
+TABLE_HEADER = f"{LEFT_INDENT}┌{'─' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┬{'─' * (TEXT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┐"
+HEADER_ROW = f"{LEFT_INDENT}│{'Item':^{ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│{'Unused':^{UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│{'Used':^{USED_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│{'Font Combinations':<{FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│{'Text Preview':<{TEXT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}│"
+HEADER_DIV = f"{LEFT_INDENT}├{'─' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┼{'─' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┼{'─' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┼{'─' * (FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┼{'─' * (TEXT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┤"
+TABLE_ROW = f"{LEFT_INDENT}│{{item:^{ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING}}}│{{unused:^{UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING}.2f}}│{{used:^{USED_COLUMN_WIDTH + 2 * COLUMN_PADDING}.2f}}│{{font:<{FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}}│{{text:<{TEXT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}}│"
+BLANK_ROW = f"{LEFT_INDENT}│{' ' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}│{' ' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}│{' ' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}│{{font:<{FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING}}}│{' ' * (TEXT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}│"
+TABLE_FOOTER = f"{LEFT_INDENT}└{'─' * (ITEM_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (UNUSED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (USED_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (FONT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┴{'─' * (TEXT_COLUMN_WIDTH + 2 * COLUMN_PADDING)}┘"
 
 
 class FontProcessor:
@@ -94,18 +95,30 @@ class FontProcessor:
         return sorted_fonts
 
 
-def parse_page_range(page_range: str) -> List[int]:
-    """Parse page range string into list of page numbers"""
+def parse_page_range(page_range: str, exclude_pages: str = "") -> List[int]:
+    """Parse page range string into list of page numbers, considering exclusions."""
     if page_range.lower() == "all":
-        return ["all"]
+        pages = ["all"]
+    else:
+        pages = []
+        for part in page_range.replace(" ", "").split(","):
+            if "-" in part:
+                start, end = map(int, part.split("-"))
+                pages.extend(range(start, end + 1))
+            else:
+                pages.append(int(part))
 
-    pages = []
-    for part in page_range.replace(" ", "").split(","):
-        if "-" in part:
-            start, end = map(int, part.split("-"))
-            pages.extend(range(start, end + 1))
-        else:
-            pages.append(int(part))
+    # Handle exclusions
+    if exclude_pages:
+        exclude = set()
+        for part in exclude_pages.replace(" ", "").split(","):
+            if "-" in part:
+                start, end = map(int, part.split("-"))
+                exclude.update(range(start, end + 1))
+            else:
+                exclude.add(int(part))
+        pages = [p for p in pages if p not in exclude]
+
     return pages
 
 
@@ -159,41 +172,51 @@ def find_margins(
 
 def analyze_vertical_layout(
     blocks: List[Dict], page_height: float
-) -> List[Tuple[str, float, Set[tuple]]]:
-    """Analyze vertical layout of used/unused areas with font info"""
+) -> List[Tuple[str, float, Set[tuple], str]]:  # Changed return type
+    """Analyze vertical layout with text aggregation for same-font blocks"""
     layout = []
     current_y = 0.0
     sorted_blocks = sorted(blocks, key=lambda b: b["bbox"]["top"])
+    current_text = ""
+    current_font = None
 
     for block in sorted_blocks:
         bbox = block["bbox"]
-        # if bbox["top"] > current_y:
-        #    # Add unused space before this block (no fonts)
-        #    layout.append(("unused", bbox["top"] - current_y, set()))
-        #   Always add unused space, even if its negative
-        layout.append(("unused", bbox["top"] - current_y, set()))
-
-        # Collect fonts from text segments
         block_fonts = set()
+        block_text = []
+
         for seg in block.get("text_segments", []):
             if seg.get("font") and seg.get("font_size"):
-                block_fonts.add((seg["font"], seg["font_size"]))
+                font_key = (seg["font"], seg["font_size"])
+                block_fonts.add(font_key)
+                if font_key == current_font:
+                    current_text += seg.get("text", "") + " "
+                else:
+                    current_font = font_key
+                    current_text = seg.get("text", "") + " "
+            elif seg.get("text"):
+                block_text.append(seg["text"])
 
-        # Add used space with fonts
-        layout.append(("used", bbox["bottom"] - bbox["top"], block_fonts))
+        # Add unused space entry with empty text
+        layout.append(("unused", bbox["top"] - current_y, set(), ""))
+
+        # Add used space with fonts and collected text
+        layout.append(
+            ("used", bbox["bottom"] - bbox["top"], block_fonts, current_text.strip())
+        )
         current_y = bbox["bottom"]
+        current_text = ""  # Reset for next block
 
-    # Add final unused space if needed
     if current_y < page_height:
-        layout.append(("unused", page_height - current_y, set()))
+        layout.append(("unused", page_height - current_y, set(), ""))
 
     return layout
 
 
 def display_vertical_layout_table(
-    layout: List[Tuple[str, float, Set[tuple]]], font_processor: FontProcessor
+    layout: List[Tuple[str, float, Set[tuple], str]], font_processor: FontProcessor
 ):
-    print("  Vertical layout:")
+    print(" Vertical layout:")
     print(TABLE_HEADER)
     print(HEADER_ROW)
     print(HEADER_DIV)
@@ -201,61 +224,58 @@ def display_vertical_layout_table(
     combined_rows = []
     i = 0
     while i < len(layout):
-        # Initialize with numeric defaults
         unused = 0.0
         used = 0.0
         fonts = set()
+        text = ""
 
-        # Handle unused section
         if i < len(layout) and layout[i][0] == "unused":
-            try:
-                unused = float(layout[i][1])
-            except (ValueError, TypeError):
-                unused = 0.0
+            unused = max(0.0, float(layout[i][1]))
             i += 1
 
-        # Handle used section
         if i < len(layout) and layout[i][0] == "used":
-            try:
-                used = float(layout[i][1])
-            except (ValueError, TypeError):
-                used = 0.0
-
-            # Process font data
-            segment_fonts = set()
+            used = max(0.0, float(layout[i][1]))
+            fonts = set()
             for font_name, size in layout[i][2]:
                 base_name, style, _ = font_processor._parse_font_name(font_name)
                 rounded_size = font_processor._round_size(size)
                 font_id = font_processor.font_registry.get(base_name, -1)
                 fonts.add((font_id, style, rounded_size))
-
+            text = layout[i][3][:TEXT_COLUMN_WIDTH]  # Truncate text
             i += 1
 
         if unused > 0 or used > 0 or fonts:
-            combined_rows.append((unused, used, fonts))
+            combined_rows.append((unused, used, fonts, text))
 
-    # Format and display rows
-    for idx, (unused, used, fonts) in enumerate(combined_rows, 1):
+    for idx, (unused, used, fonts, text) in enumerate(combined_rows, 1):
         font_entries = []
         for font_id, style, size in fonts:
             font_entries.append(font_processor.format_font_entry(font_id, style, size))
 
-        if not font_entries:
-            font_entries = ["-"]
-
-        # Print first row with all columns
-        print(
-            TABLE_ROW.format(
-                item=idx,
-                unused=unused,  # Now guaranteed to be float
-                used=used,  # Now guaranteed to be float
-                font=font_entries[0],
-            )
+        truncated_text = (
+            (text[: TEXT_COLUMN_WIDTH - 3] + "...")
+            if len(text) > TEXT_COLUMN_WIDTH
+            else text
         )
 
-        # Print additional rows for multiple fonts
-        for font in font_entries[1:]:
-            print(BLANK_ROW.format(font=font))
+        if not font_entries:
+            print(
+                TABLE_ROW.format(
+                    item=idx, unused=unused, used=used, font="-", text=truncated_text
+                )
+            )
+        else:
+            print(
+                TABLE_ROW.format(
+                    item=idx,
+                    unused=unused,
+                    used=used,
+                    font=font_entries[0],
+                    text=truncated_text,
+                )
+            )
+            for font in font_entries[1:]:
+                print(BLANK_ROW.format(font=font))
 
     print(TABLE_FOOTER)
 
@@ -344,6 +364,30 @@ def process_and_save_files(
         json.dump(filtered_data, f, indent=2)
 
 
+def generate_summary(data: List[Dict], pages_to_process: List[int]) -> None:
+    """Generate and display a summary of processed pages."""
+    total_blocks = 0
+    total_fonts = set()
+    unused_space = 0
+
+    for page in data:
+        if page["page_number"] in pages_to_process or "all" in pages_to_process:
+            blocks = page.get("blocks", [])
+            total_blocks += len(blocks)
+            for block in blocks:
+                for segment in block.get("text_segments", []):
+                    font = segment.get("font")
+                    if font:
+                        total_fonts.add(font)
+                    unused_space += block.get("bbox", {}).get("x0", 0)
+
+    print("\nSummary:")
+    print(f" Total Pages Processed: {len(pages_to_process)}")
+    print(f" Total Blocks Processed: {total_blocks}")
+    print(f" Unique Fonts Used: {len(total_fonts)}")
+    print(f" Total Unused Space (approx.): {unused_space:.2f}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="PDF Layout Analyzer")
     parser.add_argument("file_path", help="Input JSON file")
@@ -359,6 +403,11 @@ def main():
     parser.add_argument(
         "-o", "--output", default="layout_output", help="Output directory"
     )
+    parser.add_argument(
+        "--exclude-pages",
+        default="",
+        help="Pages to exclude from processing (e.g., '2-4')",
+    )
 
     args = parser.parse_args()
 
@@ -367,7 +416,7 @@ def main():
         data = json.load(f)
 
     # Process pages
-    pages_to_process = parse_page_range(args.pages)
+    pages_to_process = parse_page_range(args.pages, args.exclude_pages)
     if "all" in pages_to_process:
         pages_to_process = [p["page_number"] for p in data]
 
@@ -400,6 +449,8 @@ def main():
     print(
         "└──────┴─────────────────────────────┴──────────────┴──────────────────────────────────────────────┘"
     )
+
+    generate_summary(data, pages_to_process)
 
 
 if __name__ == "__main__":
